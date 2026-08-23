@@ -1,0 +1,20 @@
+#pragma once
+
+// ─────────────────────────────────────────────────────────────────────────────
+// version.hpp.in — CMake-configured version header
+//
+// This file is processed by cmake's configure_file() to produce
+// build/generated/version.hpp with the actual version numbers injected.
+// ─────────────────────────────────────────────────────────────────────────────
+
+namespace blades
+{
+
+constexpr int VERSION_MAJOR = @blades_VERSION_MAJOR@;
+constexpr int VERSION_MINOR = @blades_VERSION_MINOR@;
+constexpr int VERSION_PATCH = @blades_VERSION_PATCH@;
+
+constexpr const char* VERSION_STRING = "@blades_VERSION@";
+constexpr const char* LANGUAGE_NAME  = "Blades";
+
+} // namespace blades

@@ -1,0 +1,9 @@
+// Placeholder — examples will be added as the language evolves.
+// This file will contain a "Hello, World!" program once the runtime
+// (Phase 6) is implemented.
+//
+// Expected syntax:
+//
+//   fn main() {
+//       print("Hello, World!")
+//   }
