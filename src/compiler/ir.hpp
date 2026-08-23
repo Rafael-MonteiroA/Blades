@@ -44,6 +44,7 @@ enum class OpCode : u8
 
     GetLocal,
     SetLocal,
+    Pop,
 
     // Control flow
     Jump,

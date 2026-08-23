@@ -163,7 +163,7 @@ std::any IRGenerator::visit(const CallExpr& expr)
 std::any IRGenerator::visit(const ExprStmt& stmt)
 {
     stmt.expression->accept(*this);
-    // Normally we'd emit OP_POP here to discard the expression result, but we'll skip for this simple IR
+    emit(OpCode::Pop, 0, 0); // Pop the expression result
     return std::any();
 }
 
@@ -209,7 +209,7 @@ std::any IRGenerator::visit(const BlockStmt& stmt)
     while (!m_locals.empty() && m_locals.back().depth > m_scope_depth)
     {
         m_locals.pop_back();
-        // Emitting OP_POP here to clean the stack would be proper
+        emit(OpCode::Pop, 0, 0); // Clean the stack
     }
     
     return std::any();

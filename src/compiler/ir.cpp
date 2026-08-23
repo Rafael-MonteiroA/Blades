@@ -84,6 +84,7 @@ std::string disassemble_instruction(const IRChunk& chunk, u32 offset)
         
         case OpCode::GetLocal:     return oss.str() + byte_instruction("OP_GET_LOCAL", inst.operand);
         case OpCode::SetLocal:     return oss.str() + byte_instruction("OP_SET_LOCAL", inst.operand);
+        case OpCode::Pop:          return oss.str() + simple_instruction("OP_POP");
         
         case OpCode::Jump:         return oss.str() + jump_instruction("OP_JUMP", 1, chunk, offset, inst.operand);
         case OpCode::JumpIfFalse:  return oss.str() + jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset, inst.operand);

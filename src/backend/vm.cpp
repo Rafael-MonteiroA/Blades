@@ -265,6 +265,11 @@ InterpretResult VM::run()
                 m_stack[inst.operand] = peek(0);
                 break;
             }
+            case OpCode::Pop:
+            {
+                pop();
+                break;
+            }
             case OpCode::Jump:
             {
                 u32 offset = inst.operand;
