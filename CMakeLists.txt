@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 project(
     blades
@@ -52,6 +53,16 @@ configure_file(
     ${CMAKE_BINARY_DIR}/generated/version.hpp
     @ONLY
 )
+
+# ── Dependencies (Raylib) ─────────────────────────────────────────────────────
+include(FetchContent)
+FetchContent_Declare(
+    raylib
+    URL https://github.com/raysan5/raylib/archive/refs/tags/5.0.tar.gz
+)
+set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(raylib)
 
 # ── Subdirectories ────────────────────────────────────────────────────────────
 add_subdirectory(src)

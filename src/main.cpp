@@ -19,6 +19,7 @@
 #include "compiler/ir_generator.hpp"
 #include "backend/vm.hpp"
 #include "runtime/stdlib.hpp"
+#include "runtime/graphics.hpp"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Forward declarations (will be implemented in later phases)
@@ -59,8 +60,23 @@ struct ExecutionState
         globals.declare("input", ValueType::Any);
         globals.declare("len", ValueType::Any);
         
-        // Inject stdlib in VM
+        // Graphics
+        globals.declare("window_init", ValueType::Any);
+        globals.declare("window_should_close", ValueType::Any);
+        globals.declare("window_close", ValueType::Any);
+        globals.declare("begin_drawing", ValueType::Any);
+        globals.declare("end_drawing", ValueType::Any);
+        globals.declare("clear_background", ValueType::Any);
+        globals.declare("draw_circle", ValueType::Any);
+        globals.declare("draw_rectangle", ValueType::Any);
+        globals.declare("begin_mode_3d", ValueType::Any);
+        globals.declare("end_mode_3d", ValueType::Any);
+        globals.declare("draw_cube", ValueType::Any);
+        globals.declare("draw_line_3d", ValueType::Any);
+        
+        // Inject modules in VM
         register_stdlib(vm);
+        register_graphics_functions(vm);
     }
 };
 

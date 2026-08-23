@@ -54,10 +54,17 @@ enum class OpCode : u8
     // Functions
     Call,
     
-    // Arrays
+    // Arrays & Dicts
     BuildList,
+    BuildDict,
     GetSubscript,
     SetSubscript,
+    GetProperty,
+    SetProperty,
+
+    // Classes
+    Class,
+    Method,
 
     // End of instruction
     Return

@@ -202,6 +202,7 @@ TokenType Lexer::identifier_type() const
     switch (c)
     {
         case 'a': return check_keyword(1, 2, "nd", TokenType::And);
+        case 'c': return check_keyword(1, 4, "lass", TokenType::Class);
         case 'e': return check_keyword(1, 3, "lse", TokenType::Else);
         case 'f':
             if (m_current_offset - m_start_offset > 1) {
@@ -217,7 +218,14 @@ TokenType Lexer::identifier_type() const
         case 'o': return check_keyword(1, 1, "r", TokenType::Or);
         case 'r': return check_keyword(1, 5, "eturn", TokenType::Return);
         case 's': return check_keyword(1, 5, "truct", TokenType::Struct);
-        case 't': return check_keyword(1, 3, "rue", TokenType::True);
+        case 't':
+            if (m_current_offset - m_start_offset > 1) {
+                switch (m_source[m_start_offset + 1]) {
+                    case 'h': return check_keyword(2, 2, "is", TokenType::This);
+                    case 'r': return check_keyword(2, 2, "ue", TokenType::True);
+                }
+            }
+            break;
         case 'w': return check_keyword(1, 4, "hile", TokenType::While);
     }
     return TokenType::Identifier;

@@ -126,17 +126,26 @@ std::vector<std::unique_ptr<Stmt>> Parser::parse()
 
 std::unique_ptr<Stmt> Parser::declaration()
 {
-    if (match(TokenType::Fn)) return function_declaration();
-    if (match(TokenType::Let)) return let_declaration();
-    return statement();
+    try
+    {
+        if (match(TokenType::Class)) return class_declaration();
+        if (match(TokenType::Fn)) return fn_declaration("function");
+        if (match(TokenType::Let)) return let_declaration();
+        return statement();
+    }
+    catch (const ParseError&)
+    {
+        synchronize();
+        return nullptr;
+    }
 }
 
-std::unique_ptr<Stmt> Parser::function_declaration()
+std::unique_ptr<Stmt> Parser::fn_declaration(std::string kind)
 {
-    consume(TokenType::Identifier, "Expect function name.");
+    consume(TokenType::Identifier, ("Expect " + kind + " name.").c_str());
     Token name = m_previous;
     
-    consume(TokenType::LeftParen, "Expect '(' after function name.");
+    consume(TokenType::LeftParen, ("Expect '(' after " + kind + " name.").c_str());
     std::vector<Token> parameters;
     if (!check(TokenType::RightParen))
     {
@@ -160,10 +169,33 @@ std::unique_ptr<Stmt> Parser::function_declaration()
         consume(TokenType::Identifier, "Expect return type.");
     }
     
-    consume(TokenType::LeftBrace, "Expect '{' before function body.");
+    consume(TokenType::LeftBrace, ("Expect '{' before " + kind + " body.").c_str());
     auto body = std::unique_ptr<BlockStmt>(static_cast<BlockStmt*>(block_statement().release()));
     
     return std::make_unique<FunctionDecl>(std::move(name), std::move(parameters), std::move(body));
+}
+
+std::unique_ptr<Stmt> Parser::class_declaration()
+{
+    consume(TokenType::Identifier, "Expect class name.");
+    Token name = m_previous;
+    
+    consume(TokenType::LeftBrace, "Expect '{' before class body.");
+    
+    std::vector<std::unique_ptr<FunctionDecl>> methods;
+    while (!check(TokenType::RightBrace) && !check(TokenType::Eof))
+    {
+        if (match(TokenType::Fn)) {
+            auto method = fn_declaration("method");
+            // Cast safe because fn_declaration always returns FunctionDecl
+            methods.push_back(std::unique_ptr<FunctionDecl>(static_cast<FunctionDecl*>(method.release())));
+        } else {
+            error_at_current("Expect 'fn' for method declaration.");
+        }
+    }
+    
+    consume(TokenType::RightBrace, "Expect '}' after class body.");
+    return std::make_unique<ClassDecl>(std::move(name), std::move(methods));
 }
 
 std::unique_ptr<Stmt> Parser::let_declaration()
@@ -314,6 +346,15 @@ std::unique_ptr<Expr> Parser::assignment()
             return std::make_unique<SubscriptAssignExpr>(
                 std::move(sub_expr->object), 
                 std::move(sub_expr->index), 
+                std::move(value),
+                Token{} // fake bracket token
+            );
+        }
+        else if (auto* prop_expr = dynamic_cast<PropertyExpr*>(expr.get()))
+        {
+            return std::make_unique<PropertyAssignExpr>(
+                std::move(prop_expr->object), 
+                prop_expr->name, 
                 std::move(value)
             );
         }
@@ -443,6 +484,12 @@ std::unique_ptr<Expr> Parser::call()
             consume(TokenType::RightBracket, "Expect ']' after index.");
             expr = std::make_unique<SubscriptExpr>(std::move(expr), std::move(index));
         }
+        else if (match(TokenType::Dot))
+        {
+            consume(TokenType::Identifier, "Expect property name after '.'.");
+            Token name = m_previous;
+            expr = std::make_unique<PropertyExpr>(std::move(expr), std::move(name));
+        }
         else
         {
             break;
@@ -459,6 +506,11 @@ std::unique_ptr<Expr> Parser::primary()
     if (match(TokenType::Integer) || match(TokenType::Float) || match(TokenType::String))
     {
         return std::make_unique<LiteralExpr>(m_previous);
+    }
+    
+    if (match(TokenType::This))
+    {
+        return std::make_unique<ThisExpr>(m_previous);
     }
     
     if (match(TokenType::Identifier))
@@ -485,6 +537,37 @@ std::unique_ptr<Expr> Parser::primary()
         }
         consume(TokenType::RightBracket, "Expect ']' after array elements.");
         return std::make_unique<ArrayExpr>(std::move(elements));
+    }
+    
+    if (match(TokenType::LeftBrace))
+    {
+        std::vector<std::pair<std::unique_ptr<Expr>, std::unique_ptr<Expr>>> elements;
+        if (!check(TokenType::RightBrace))
+        {
+            do
+            {
+                std::unique_ptr<Expr> key;
+                if (match(TokenType::Identifier) || match(TokenType::String))
+                {
+                    Token key_token = m_previous;
+                    if (key_token.type == TokenType::Identifier) {
+                        key_token.type = TokenType::String; // Treat identifier keys as strings
+                    }
+                    key = std::make_unique<LiteralExpr>(key_token);
+                }
+                else
+                {
+                    error_at_current("Expect dictionary key (identifier or string).");
+                }
+                
+                consume(TokenType::Colon, "Expect ':' after dictionary key.");
+                auto value = expression();
+                
+                elements.push_back({std::move(key), std::move(value)});
+            } while (match(TokenType::Comma));
+        }
+        consume(TokenType::RightBrace, "Expect '}' after dictionary.");
+        return std::make_unique<DictExpr>(std::move(elements));
     }
 
     error_at_current("Expect expression.");

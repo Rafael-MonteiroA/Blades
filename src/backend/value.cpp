@@ -37,6 +37,27 @@ std::string to_string(const Value& value)
         return result;
     }
     
+    if (value.is_dict())
+    {
+        std::string result = "{";
+        auto dict = value.as_dict();
+        bool first = true;
+        for (const auto& [k, v] : dict->elements)
+        {
+            if (!first) result += ", ";
+            first = false;
+            result += k + ": ";
+            if (v.is_string()) result += "\"" + v.as_string() + "\"";
+            else result += to_string(v);
+        }
+        result += "}";
+        return result;
+    }
+    
+    if (value.is_class()) return "<class " + value.as_class()->name + ">";
+    if (value.is_instance()) return "<instance " + value.as_instance()->klass->name + ">";
+    if (value.is_bound_method()) return "<bound method " + value.as_bound_method()->method->name + ">";
+
     return "<unknown value>";
 }
 

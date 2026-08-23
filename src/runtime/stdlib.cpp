@@ -14,7 +14,7 @@ static Value stdlib_print(const std::vector<Value>& args)
         std::cout << to_string(args[i]);
         if (i < args.size() - 1) std::cout << " ";
     }
-    std::cout << "\n";
+    std::cout << std::endl;
     return Value(Nil{});
 }
 
@@ -34,9 +34,11 @@ static Value stdlib_typeof(const std::vector<Value>& args)
     if (val.is_double()) return Value("double");
     if (val.is_bool()) return Value("bool");
     if (val.is_string()) return Value("string");
-    if (val.is_native_fn()) return Value("native_fn");
-    if (val.is_function()) return Value("function");
+    if (val.is_function() || val.is_native_fn() || val.is_bound_method()) return Value("function");
     if (val.is_array()) return Value("array");
+    if (val.is_dict()) return Value("dict");
+    if (val.is_class()) return Value("class");
+    if (val.is_instance()) return Value("instance");
     
     return Value("unknown");
 }
@@ -83,6 +85,10 @@ static Value stdlib_len(const std::vector<Value>& args)
     else if (args[0].is_array())
     {
         return Value(static_cast<int>(args[0].as_array()->elements.size()));
+    }
+    else if (args[0].is_dict())
+    {
+        return Value(static_cast<int>(args[0].as_dict()->elements.size()));
     }
     
     return Value(0);

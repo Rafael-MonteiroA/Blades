@@ -10,6 +10,7 @@
 #include <iostream>
 #include <vector>
 #include <memory>
+#include <unordered_map>
 
 namespace blades
 {
@@ -27,9 +28,28 @@ struct ObjArray
     std::vector<Value> elements;
 };
 
+struct ObjDict
+{
+    std::unordered_map<std::string, Value> elements;
+};
+
+struct ObjClass
+{
+    std::string name;
+    std::unordered_map<std::string, Value> methods;
+};
+
+struct ObjInstance
+{
+    std::shared_ptr<ObjClass> klass;
+    std::unordered_map<std::string, Value> fields;
+};
+
+struct ObjBoundMethod;
+
 struct Value
 {
-    std::variant<Nil, int, double, bool, std::string, NativeFn, std::shared_ptr<ObjFunction>, std::shared_ptr<ObjArray>> data;
+    std::variant<Nil, int, double, bool, std::string, NativeFn, std::shared_ptr<ObjFunction>, std::shared_ptr<ObjArray>, std::shared_ptr<ObjDict>, std::shared_ptr<ObjClass>, std::shared_ptr<ObjInstance>, std::shared_ptr<ObjBoundMethod>> data;
 
     // Constructors
     Value() : data(Nil{}) {}
@@ -42,6 +62,10 @@ struct Value
     Value(NativeFn fn) : data(fn) {}
     Value(std::shared_ptr<ObjFunction> fn) : data(std::move(fn)) {}
     Value(std::shared_ptr<ObjArray> arr) : data(std::move(arr)) {}
+    Value(std::shared_ptr<ObjDict> dict) : data(std::move(dict)) {}
+    Value(std::shared_ptr<ObjClass> klass) : data(std::move(klass)) {}
+    Value(std::shared_ptr<ObjInstance> inst) : data(std::move(inst)) {}
+    Value(std::shared_ptr<ObjBoundMethod> bound) : data(std::move(bound)) {}
 
     // Type checking
     bool is_nil() const { return std::holds_alternative<Nil>(data); }
@@ -53,6 +77,10 @@ struct Value
     bool is_native_fn() const { return std::holds_alternative<NativeFn>(data); }
     bool is_function() const { return std::holds_alternative<std::shared_ptr<ObjFunction>>(data); }
     bool is_array() const { return std::holds_alternative<std::shared_ptr<ObjArray>>(data); }
+    bool is_dict() const { return std::holds_alternative<std::shared_ptr<ObjDict>>(data); }
+    bool is_class() const { return std::holds_alternative<std::shared_ptr<ObjClass>>(data); }
+    bool is_instance() const { return std::holds_alternative<std::shared_ptr<ObjInstance>>(data); }
+    bool is_bound_method() const { return std::holds_alternative<std::shared_ptr<ObjBoundMethod>>(data); }
 
     // Extraction
     int as_int() const { return std::get<int>(data); }
@@ -62,6 +90,10 @@ struct Value
     NativeFn as_native_fn() const { return std::get<NativeFn>(data); }
     std::shared_ptr<ObjFunction> as_function() const { return std::get<std::shared_ptr<ObjFunction>>(data); }
     std::shared_ptr<ObjArray> as_array() const { return std::get<std::shared_ptr<ObjArray>>(data); }
+    std::shared_ptr<ObjDict> as_dict() const { return std::get<std::shared_ptr<ObjDict>>(data); }
+    std::shared_ptr<ObjClass> as_class() const { return std::get<std::shared_ptr<ObjClass>>(data); }
+    std::shared_ptr<ObjInstance> as_instance() const { return std::get<std::shared_ptr<ObjInstance>>(data); }
+    std::shared_ptr<ObjBoundMethod> as_bound_method() const { return std::get<std::shared_ptr<ObjBoundMethod>>(data); }
     
     // Casting (e.g., getting a number as double regardless of int or double)
     double as_number() const
@@ -87,6 +119,12 @@ struct Value
     {
         return !(*this == other);
     }
+};
+
+struct ObjBoundMethod
+{
+    Value receiver;
+    std::shared_ptr<ObjFunction> method;
 };
 
 std::string to_string(const Value& value);

@@ -161,6 +161,43 @@ std::any IRGenerator::visit(const SubscriptAssignExpr& expr)
     return std::any();
 }
 
+std::any IRGenerator::visit(const DictExpr& expr)
+{
+    for (const auto& [k, v] : expr.elements)
+    {
+        k->accept(*this);
+        v->accept(*this);
+    }
+    emit(OpCode::BuildDict, static_cast<u32>(expr.elements.size()), 0);
+    return std::any();
+}
+
+std::any IRGenerator::visit(const PropertyExpr& expr)
+{
+    expr.object->accept(*this);
+    u32 name_idx = make_constant(Value(std::string(expr.name.lexeme)));
+    emit(OpCode::GetProperty, name_idx, expr.name.span.start.line);
+    return std::any();
+}
+
+std::any IRGenerator::visit(const PropertyAssignExpr& expr)
+{
+    expr.object->accept(*this);
+    expr.value->accept(*this);
+    u32 name_idx = make_constant(Value(std::string(expr.name.lexeme)));
+    emit(OpCode::SetProperty, name_idx, expr.name.span.start.line);
+    return std::any();
+}
+
+std::any IRGenerator::visit(const ThisExpr& expr)
+{
+    // 'this' is just a local variable implicitly placed at slot 0 of the method's frame.
+    // However, our local resolution doesn't currently do string lookups in IRGenerator.
+    // Wait, let's just use GetLocal with index 0.
+    emit(OpCode::GetLocal, 0, expr.keyword.span.start.line);
+    return std::any();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Statements
 // ─────────────────────────────────────────────────────────────────────────────
@@ -339,6 +376,55 @@ std::any IRGenerator::visit(const FunctionDecl& decl)
     {
         u32 name_idx = make_constant(Value(std::string(decl.name.lexeme)));
         emit(OpCode::DefineGlobal, name_idx, decl.name.span.start.line);
+    }
+    
+    return std::any();
+}
+
+std::any IRGenerator::visit(const ClassDecl& decl)
+{
+    u32 name_idx = make_constant(Value(std::string(decl.name.lexeme)));
+    
+    // Instantiate the class definition at runtime
+    emit(OpCode::Class, name_idx, decl.name.span.start.line);
+    emit(OpCode::DefineGlobal, name_idx, decl.name.span.start.line);
+
+    for (const auto& method : decl.methods)
+    {
+        auto comp = std::make_unique<CompilerState>();
+        comp->function = std::make_shared<ObjFunction>();
+        comp->function->name = std::string(method->name.lexeme);
+        // The arity is params size. Note: 'this' is implicitly at slot 0 when called.
+        comp->function->arity = static_cast<u32>(method->params.size());
+        
+        m_compiler_stack.push_back(std::move(comp));
+        
+        // Define parameters as locals
+        // 'this' is local 0 implicitly. We can declare it to make it resolvable.
+        current()->locals.push_back(Local{"this", current()->scope_depth});
+        for (const auto& param : method->params)
+        {
+            current()->locals.push_back(Local{std::string(param.lexeme), current()->scope_depth});
+        }
+        
+        method->body->accept(*this);
+        
+        // Implicit return nil if method doesn't return
+        u32 nil_idx = make_constant(Value(Nil{}));
+        emit(OpCode::Constant, nil_idx, decl.name.span.start.line);
+        emit(OpCode::Return, 0, decl.name.span.start.line);
+        
+        auto method_func = m_compiler_stack.back()->function;
+        m_compiler_stack.pop_back();
+        
+        // Load the class back on top of the stack
+        emit(OpCode::GetGlobal, name_idx, decl.name.span.start.line);
+        
+        u32 func_idx = make_constant(Value(method_func));
+        emit(OpCode::Constant, func_idx, method->name.span.start.line);
+        
+        u32 method_name_idx = make_constant(Value(std::string(method->name.lexeme)));
+        emit(OpCode::Method, method_name_idx, method->name.span.start.line);
     }
     
     return std::any();

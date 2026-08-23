@@ -37,9 +37,9 @@ enum class TokenType
     Identifier, String, Integer, Float,
 
     // Keywords
-    Fn, Let, Return, Struct,
+    Fn, Let, Return, Struct, Class,
     If, Else, True, False,
-    For, While, And, Or,
+    For, While, And, Or, This,
 
     // Special
     Eof,

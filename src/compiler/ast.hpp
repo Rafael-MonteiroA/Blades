@@ -26,6 +26,10 @@ class CallExpr;
 class ArrayExpr;
 class SubscriptExpr;
 class SubscriptAssignExpr;
+class DictExpr;
+class PropertyExpr;
+class PropertyAssignExpr;
+class ThisExpr;
 
 class Stmt;
 class ExprStmt;
@@ -36,6 +40,7 @@ class WhileStmt;
 class ForStmt;
 class ReturnStmt;
 class FunctionDecl;
+class ClassDecl;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AstVisitor
@@ -57,6 +62,10 @@ public:
     virtual std::any visit(const ArrayExpr& expr) = 0;
     virtual std::any visit(const SubscriptExpr& expr) = 0;
     virtual std::any visit(const SubscriptAssignExpr& expr) = 0;
+    virtual std::any visit(const DictExpr& expr) = 0;
+    virtual std::any visit(const PropertyExpr& expr) = 0;
+    virtual std::any visit(const PropertyAssignExpr& expr) = 0;
+    virtual std::any visit(const ThisExpr& expr) = 0;
 
     // Statements
     virtual std::any visit(const ExprStmt& stmt) = 0;
@@ -67,6 +76,7 @@ public:
     virtual std::any visit(const ForStmt& stmt) = 0;
     virtual std::any visit(const ReturnStmt& stmt) = 0;
     virtual std::any visit(const FunctionDecl& decl) = 0;
+    virtual std::any visit(const ClassDecl& decl) = 0;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -191,9 +201,62 @@ public:
     std::unique_ptr<Expr> object;
     std::unique_ptr<Expr> index;
     std::unique_ptr<Expr> value;
-    
-    SubscriptAssignExpr(std::unique_ptr<Expr> object, std::unique_ptr<Expr> index, std::unique_ptr<Expr> value)
-        : object(std::move(object)), index(std::move(index)), value(std::move(value)) {}
+    Token bracket;
+
+    SubscriptAssignExpr(std::unique_ptr<Expr> object, std::unique_ptr<Expr> index, std::unique_ptr<Expr> value, Token bracket)
+        : object(std::move(object)), index(std::move(index)), value(std::move(value)), bracket(std::move(bracket)) {}
+
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
+class DictExpr : public Expr
+{
+public:
+    // A dictionary is a list of key-value pairs.
+    // For simplicity, keys are represented as expressions (typically LiteralExpr with String/Identifier)
+    std::vector<std::pair<std::unique_ptr<Expr>, std::unique_ptr<Expr>>> elements;
+
+    DictExpr(std::vector<std::pair<std::unique_ptr<Expr>, std::unique_ptr<Expr>>> elements)
+        : elements(std::move(elements)) {}
+
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
+class PropertyExpr : public Expr
+{
+public:
+    std::unique_ptr<Expr> object;
+    Token name;
+
+    PropertyExpr(std::unique_ptr<Expr> object, Token name)
+        : object(std::move(object)), name(std::move(name)) {}
+
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
+class PropertyAssignExpr : public Expr
+{
+public:
+    std::unique_ptr<Expr> object;
+    Token name;
+    std::unique_ptr<Expr> value;
+
+    PropertyAssignExpr(std::unique_ptr<Expr> object, Token name, std::unique_ptr<Expr> value)
+        : object(std::move(object)), name(std::move(name)), value(std::move(value)) {}
+
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ThisExpr
+// ─────────────────────────────────────────────────────────────────────────────
+
+class ThisExpr : public Expr
+{
+public:
+    Token keyword;
+
+    explicit ThisExpr(Token keyword) : keyword(std::move(keyword)) {}
     std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
 };
 
@@ -296,6 +359,17 @@ public:
     std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
 };
 
+class ClassDecl : public Stmt
+{
+public:
+    Token name;
+    std::vector<std::unique_ptr<FunctionDecl>> methods;
+
+    ClassDecl(Token name, std::vector<std::unique_ptr<FunctionDecl>> methods)
+        : name(std::move(name)), methods(std::move(methods)) {}
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // AstPrinter — Helper to stringify the AST (mostly for tests)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -315,6 +389,10 @@ public:
     std::any visit(const ArrayExpr& expr) override;
     std::any visit(const SubscriptExpr& expr) override;
     std::any visit(const SubscriptAssignExpr& expr) override;
+    std::any visit(const DictExpr& expr) override;
+    std::any visit(const PropertyExpr& expr) override;
+    std::any visit(const PropertyAssignExpr& expr) override;
+    std::any visit(const ThisExpr& expr) override;
 
     std::any visit(const ExprStmt& stmt) override;
     std::any visit(const LetStmt& stmt) override;
@@ -324,6 +402,7 @@ public:
     std::any visit(const ForStmt& stmt) override;
     std::any visit(const ReturnStmt& stmt) override;
     std::any visit(const FunctionDecl& decl) override;
+    std::any visit(const ClassDecl& decl) override;
 };
 
 } // namespace blades

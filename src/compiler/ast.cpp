@@ -47,6 +47,12 @@ std::any AstPrinter::visit(const VariableExpr& expr)
     return std::string(expr.name.lexeme);
 }
 
+std::any AstPrinter::visit(const ThisExpr& expr)
+{
+    (void)expr;
+    return std::string("this");
+}
+
 std::any AstPrinter::visit(const AssignExpr& expr)
 {
     std::ostringstream oss;
@@ -93,6 +99,37 @@ std::any AstPrinter::visit(const SubscriptAssignExpr& expr)
     std::ostringstream oss;
     oss << "(= (subscript " << std::any_cast<std::string>(expr.object->accept(*this)) 
         << " " << std::any_cast<std::string>(expr.index->accept(*this)) << ") "
+        << std::any_cast<std::string>(expr.value->accept(*this)) << ")";
+    return oss.str();
+}
+
+std::any AstPrinter::visit(const DictExpr& expr)
+{
+    std::ostringstream oss;
+    oss << "{";
+    for (size_t i = 0; i < expr.elements.size(); ++i)
+    {
+        if (i > 0) oss << ", ";
+        oss << std::any_cast<std::string>(expr.elements[i].first->accept(*this)) << ": "
+            << std::any_cast<std::string>(expr.elements[i].second->accept(*this));
+    }
+    oss << "}";
+    return oss.str();
+}
+
+std::any AstPrinter::visit(const PropertyExpr& expr)
+{
+    std::ostringstream oss;
+    oss << "(prop " << std::any_cast<std::string>(expr.object->accept(*this)) 
+        << " " << expr.name.lexeme << ")";
+    return oss.str();
+}
+
+std::any AstPrinter::visit(const PropertyAssignExpr& expr)
+{
+    std::ostringstream oss;
+    oss << "(= (prop " << std::any_cast<std::string>(expr.object->accept(*this)) 
+        << " " << expr.name.lexeme << ") "
         << std::any_cast<std::string>(expr.value->accept(*this)) << ")";
     return oss.str();
 }
@@ -181,6 +218,16 @@ std::any AstPrinter::visit(const FunctionDecl& decl)
     }
     oss << ") " << std::any_cast<std::string>(decl.body->accept(*this)) << ")";
     return oss.str();
+}
+
+std::any AstPrinter::visit(const ClassDecl& decl)
+{
+    std::string result = "(class " + std::string(decl.name.lexeme);
+    for (const auto& method : decl.methods)
+    {
+        result += " " + std::any_cast<std::string>(method->accept(*this));
+    }
+    return result + ")";
 }
 
 } // namespace blades

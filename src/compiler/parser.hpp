@@ -47,7 +47,8 @@ private:
 
     // Grammar - Statements
     std::unique_ptr<Stmt> declaration();
-    std::unique_ptr<Stmt> function_declaration();
+    std::unique_ptr<Stmt> class_declaration();
+    std::unique_ptr<Stmt> fn_declaration(std::string kind);
     std::unique_ptr<Stmt> let_declaration();
     std::unique_ptr<Stmt> statement();
     std::unique_ptr<Stmt> if_statement();

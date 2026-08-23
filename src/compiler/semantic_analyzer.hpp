@@ -38,6 +38,10 @@ public:
     std::any visit(const ArrayExpr& expr) override;
     std::any visit(const SubscriptExpr& expr) override;
     std::any visit(const SubscriptAssignExpr& expr) override;
+    std::any visit(const DictExpr& expr) override;
+    std::any visit(const PropertyExpr& expr) override;
+    std::any visit(const PropertyAssignExpr& expr) override;
+    std::any visit(const ThisExpr& expr) override;
 
     // Statements
     std::any visit(const ExprStmt& stmt) override;
@@ -48,6 +52,7 @@ public:
     std::any visit(const ForStmt& stmt) override;
     std::any visit(const ReturnStmt& stmt) override;
     std::any visit(const FunctionDecl& decl) override;
+    std::any visit(const ClassDecl& decl) override;
 
 private:
     SymbolTable& m_symbols;

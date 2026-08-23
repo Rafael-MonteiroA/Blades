@@ -211,9 +211,9 @@ std::any SemanticAnalyzer::visit(const SubscriptExpr& expr)
 {
     evaluate(*expr.object);
     ValueType idx_type = evaluate(*expr.index);
-    if (idx_type != ValueType::Int && idx_type != ValueType::Unknown)
+    if (idx_type != ValueType::Int && idx_type != ValueType::String && idx_type != ValueType::Unknown)
     {
-        throw SemanticError("Array index must be an integer.");
+        throw SemanticError("Index must be an integer or string.");
     }
     return ValueType::Unknown;
 }
@@ -221,13 +221,40 @@ std::any SemanticAnalyzer::visit(const SubscriptExpr& expr)
 std::any SemanticAnalyzer::visit(const SubscriptAssignExpr& expr)
 {
     evaluate(*expr.object);
-    ValueType idx_type = evaluate(*expr.index);
-    if (idx_type != ValueType::Int && idx_type != ValueType::Unknown)
-    {
-        throw SemanticError("Array index must be an integer.");
-    }
+    evaluate(*expr.index); // Index can be int for arrays, or string for dicts. So we just evaluate.
     ValueType val_type = evaluate(*expr.value);
     return val_type;
+}
+
+std::any SemanticAnalyzer::visit(const DictExpr& expr)
+{
+    for (const auto& [k, v] : expr.elements)
+    {
+        evaluate(*k);
+        evaluate(*v);
+    }
+    return ValueType::Unknown;
+}
+
+std::any SemanticAnalyzer::visit(const PropertyExpr& expr)
+{
+    evaluate(*expr.object);
+    return ValueType::Unknown;
+}
+
+std::any SemanticAnalyzer::visit(const PropertyAssignExpr& expr)
+{
+    evaluate(*expr.object);
+    ValueType val_type = evaluate(*expr.value);
+    return val_type;
+}
+
+std::any SemanticAnalyzer::visit(const ThisExpr& expr)
+{
+    (void)expr;
+    // Technically we should check if we are inside a method.
+    // For now we just return Unknown.
+    return ValueType::Unknown;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -339,6 +366,21 @@ std::any SemanticAnalyzer::visit(const FunctionDecl& decl)
     execute(*decl.body);
     
     m_symbols.end_scope();
+    return std::any();
+}
+
+std::any SemanticAnalyzer::visit(const ClassDecl& decl)
+{
+    m_symbols.declare(decl.name.lexeme, ValueType::Unknown);
+    
+    // We don't strictly need a new scope for the class body unless we want to resolve 'this' properly,
+    // but we need to visit the methods so their bodies are analyzed.
+    for (const auto& method : decl.methods)
+    {
+        // Visit the method (FunctionDecl)
+        method->accept(*this);
+    }
+    
     return std::any();
 }
 

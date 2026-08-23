@@ -3,6 +3,9 @@
 #include <iostream>
 #include <sstream>
 
+#include "runtime/stdlib.hpp"
+#include "runtime/graphics.hpp"
+
 namespace blades
 {
 
@@ -271,31 +274,70 @@ InterpretResult VM::run()
                 push(Value(arr));
                 break;
             }
+            case OpCode::BuildDict:
+            {
+                u32 count = inst.operand;
+                auto dict = std::make_shared<ObjDict>();
+                // The stack has key1, val1, key2, val2, ...
+                // Since we pop, we get val_n, key_n, val_n-1, key_n-1...
+                for (u32 i = 0; i < count; ++i)
+                {
+                    Value value = pop();
+                    Value key = pop();
+                    if (!key.is_string())
+                    {
+                        runtime_error("Dictionary keys must be strings.");
+                        return InterpretResult::RuntimeError;
+                    }
+                    dict->elements[key.as_string()] = value;
+                }
+                push(Value(dict));
+                break;
+            }
             case OpCode::GetSubscript:
             {
                 Value index = pop();
                 Value object = pop();
                 
-                if (!object.is_array())
+                if (object.is_array())
+                {
+                    if (!index.is_int())
+                    {
+                        std::cerr << "Runtime Error: Array index must be an integer.\n";
+                        return InterpretResult::RuntimeError;
+                    }
+                    int idx = index.as_int();
+                    auto arr = object.as_array();
+                    if (idx < 0 || idx >= static_cast<int>(arr->elements.size()))
+                    {
+                        std::cerr << "Runtime Error: Index out of bounds.\n";
+                        return InterpretResult::RuntimeError;
+                    }
+                    push(arr->elements[idx]);
+                }
+                else if (object.is_dict())
+                {
+                    if (!index.is_string())
+                    {
+                        std::cerr << "Runtime Error: Dictionary key must be a string.\n";
+                        return InterpretResult::RuntimeError;
+                    }
+                    auto dict = object.as_dict();
+                    auto it = dict->elements.find(index.as_string());
+                    if (it == dict->elements.end())
+                    {
+                        push(Value(Nil{})); // Return nil if key not found
+                    }
+                    else
+                    {
+                        push(it->second);
+                    }
+                }
+                else
                 {
                     std::cerr << "Runtime Error: Object is not subscriptable.\n";
                     return InterpretResult::RuntimeError;
                 }
-                if (!index.is_int())
-                {
-                    std::cerr << "Runtime Error: Array index must be an integer.\n";
-                    return InterpretResult::RuntimeError;
-                }
-                
-                int idx = index.as_int();
-                auto arr = object.as_array();
-                if (idx < 0 || idx >= static_cast<int>(arr->elements.size()))
-                {
-                    std::cerr << "Runtime Error: Index out of bounds.\n";
-                    return InterpretResult::RuntimeError;
-                }
-                
-                push(arr->elements[idx]);
                 break;
             }
             case OpCode::SetSubscript:
@@ -304,27 +346,127 @@ InterpretResult VM::run()
                 Value index = pop();
                 Value object = pop();
                 
-                if (!object.is_array())
+                if (object.is_array())
+                {
+                    if (!index.is_int())
+                    {
+                        std::cerr << "Runtime Error: Array index must be an integer.\n";
+                        return InterpretResult::RuntimeError;
+                    }
+                    int idx = index.as_int();
+                    auto arr = object.as_array();
+                    if (idx < 0 || idx >= static_cast<int>(arr->elements.size()))
+                    {
+                        std::cerr << "Runtime Error: Index out of bounds.\n";
+                        return InterpretResult::RuntimeError;
+                    }
+                    arr->elements[idx] = value;
+                    push(value);
+                }
+                else if (object.is_dict())
+                {
+                    if (!index.is_string())
+                    {
+                        std::cerr << "Runtime Error: Dictionary key must be a string.\n";
+                        return InterpretResult::RuntimeError;
+                    }
+                    auto dict = object.as_dict();
+                    dict->elements[index.as_string()] = value;
+                    push(value);
+                }
+                else
                 {
                     std::cerr << "Runtime Error: Object is not subscriptable.\n";
                     return InterpretResult::RuntimeError;
                 }
-                if (!index.is_int())
+                break;
+            }
+            case OpCode::GetProperty:
+            {
+                Value object = pop();
+                std::string name = READ_CONSTANT(inst.operand).as_string();
+                
+                if (object.is_dict())
                 {
-                    std::cerr << "Runtime Error: Array index must be an integer.\n";
+                    auto dict = object.as_dict();
+                    auto it = dict->elements.find(name);
+                    if (it == dict->elements.end()) push(Value(Nil{}));
+                    else push(it->second);
+                }
+                else if (object.is_instance())
+                {
+                    auto instance = object.as_instance();
+                    auto it = instance->fields.find(name);
+                    if (it != instance->fields.end())
+                    {
+                        push(it->second);
+                    }
+                    else
+                    {
+                        // Bind method if it exists
+                        auto method_it = instance->klass->methods.find(name);
+                        if (method_it != instance->klass->methods.end())
+                        {
+                            auto bound = std::make_shared<ObjBoundMethod>();
+                            bound->receiver = object;
+                            bound->method = method_it->second.as_function();
+                            push(Value(bound));
+                        }
+                        else
+                        {
+                            push(Value(Nil{}));
+                        }
+                    }
+                }
+                else
+                {
+                    runtime_error("Only dictionaries and instances have properties.");
                     return InterpretResult::RuntimeError;
                 }
+                break;
+            }
+            case OpCode::SetProperty:
+            {
+                Value value = pop();
+                Value object = pop();
+                std::string name = READ_CONSTANT(inst.operand).as_string();
                 
-                int idx = index.as_int();
-                auto arr = object.as_array();
-                if (idx < 0 || idx >= static_cast<int>(arr->elements.size()))
+                if (object.is_dict())
                 {
-                    std::cerr << "Runtime Error: Index out of bounds.\n";
+                    auto dict = object.as_dict();
+                    dict->elements[name] = value;
+                    push(value);
+                }
+                else if (object.is_instance())
+                {
+                    auto instance = object.as_instance();
+                    instance->fields[name] = value;
+                    push(value);
+                }
+                else
+                {
+                    runtime_error("Only dictionaries and instances have properties.");
                     return InterpretResult::RuntimeError;
                 }
-                
-                arr->elements[idx] = value;
-                push(value);
+                break;
+            }
+            case OpCode::Class:
+            {
+                std::string name = READ_CONSTANT(inst.operand).as_string();
+                auto klass = std::make_shared<ObjClass>();
+                klass->name = name;
+                push(Value(klass));
+                break;
+            }
+            case OpCode::Method:
+            {
+                std::string name = READ_CONSTANT(inst.operand).as_string();
+                Value method = pop();
+                Value klass_val = pop();
+                if (klass_val.is_class())
+                {
+                    klass_val.as_class()->methods[name] = method;
+                }
                 break;
             }
             case OpCode::Pop:
@@ -361,6 +503,8 @@ InterpretResult VM::run()
                 Value result = pop(); // Return value
                 
                 u32 slots_offset = m_frames.back().slots_offset;
+                bool is_init = (m_frames.back().function->name == "init");
+                
                 m_frames.pop_back();
                 
                 if (m_frames.empty())
@@ -368,13 +512,19 @@ InterpretResult VM::run()
                     return InterpretResult::Ok; // Top level script finished
                 }
                 
+                Value callee_or_this = m_stack[slots_offset];
+                
                 // Pop locals, arguments, and the callee
                 while (m_stack.size() > slots_offset)
                 {
                     m_stack.pop_back();
                 }
                 
-                push(result); // Put return value where the callee was
+                if (is_init) {
+                    push(callee_or_this); // Return 'this' instead of result
+                } else {
+                    push(result); // Put return value where the callee was
+                }
                 break;
             }
             case OpCode::Call:
@@ -406,6 +556,55 @@ InterpretResult VM::run()
                     
                     u32 slots_offset = static_cast<u32>(m_stack.size()) - arg_count - 1;
                     m_frames.push_back(CallFrame{function, 0, slots_offset});
+                }
+                else if (callee.is_class())
+                {
+                    std::shared_ptr<ObjClass> klass = callee.as_class();
+                    auto instance = std::make_shared<ObjInstance>();
+                    instance->klass = klass;
+                    
+                    // Call 'init' if it exists
+                    auto it = klass->methods.find("init");
+                    if (it != klass->methods.end())
+                    {
+                        // Replace the callee (the class) with the instance so 'this' is in slot 0
+                        m_stack[m_stack.size() - arg_count - 1] = Value(instance);
+                        
+                        std::shared_ptr<ObjFunction> init_func = it->second.as_function();
+                        if (arg_count != init_func->arity)
+                        {
+                            runtime_error("Expected different number of arguments for init.");
+                            return InterpretResult::RuntimeError;
+                        }
+                        
+                        u32 slots_offset = static_cast<u32>(m_stack.size()) - arg_count - 1;
+                        m_frames.push_back(CallFrame{init_func, 0, slots_offset});
+                    }
+                    else if (arg_count != 0)
+                    {
+                        runtime_error("Expected 0 arguments since class has no init method.");
+                        return InterpretResult::RuntimeError;
+                    }
+                    else
+                    {
+                        // Just replace callee with instance and return it (no frame needed).
+                        m_stack[m_stack.size() - 1] = Value(instance);
+                    }
+                }
+                else if (callee.is_bound_method())
+                {
+                    std::shared_ptr<ObjBoundMethod> bound = callee.as_bound_method();
+                    if (arg_count != bound->method->arity)
+                    {
+                        runtime_error("Expected different number of arguments.");
+                        return InterpretResult::RuntimeError;
+                    }
+                    
+                    // Replace the bound method with the receiver
+                    m_stack[m_stack.size() - arg_count - 1] = bound->receiver;
+                    
+                    u32 slots_offset = static_cast<u32>(m_stack.size()) - arg_count - 1;
+                    m_frames.push_back(CallFrame{bound->method, 0, slots_offset});
                 }
                 else
                 {

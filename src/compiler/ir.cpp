@@ -87,8 +87,11 @@ std::string disassemble_instruction(const IRChunk& chunk, u32 offset)
         case OpCode::Pop:          return oss.str() + simple_instruction("OP_POP");
         
         case OpCode::BuildList:    return oss.str() + byte_instruction("OP_BUILD_LIST", inst.operand);
+        case OpCode::BuildDict:    return oss.str() + byte_instruction("OP_BUILD_DICT", inst.operand);
         case OpCode::GetSubscript: return oss.str() + simple_instruction("OP_GET_SUBSCRIPT");
         case OpCode::SetSubscript: return oss.str() + simple_instruction("OP_SET_SUBSCRIPT");
+        case OpCode::GetProperty:  return oss.str() + constant_instruction("OP_GET_PROPERTY", chunk, inst.operand);
+        case OpCode::SetProperty:  return oss.str() + constant_instruction("OP_SET_PROPERTY", chunk, inst.operand);
         
         case OpCode::Jump:         return oss.str() + jump_instruction("OP_JUMP", 1, chunk, offset, inst.operand);
         case OpCode::JumpIfFalse:  return oss.str() + jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset, inst.operand);
