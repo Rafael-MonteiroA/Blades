@@ -1,0 +1,84 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Blades",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#builtins"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.blades",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.blades",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.blades",
+          "match": "\\b(if|else|while|return)\\b"
+        },
+        {
+          "name": "keyword.declaration.blades",
+          "match": "\\b(let|fn)\\b"
+        },
+        {
+          "name": "constant.language.blades",
+          "match": "\\b(true|false|nil)\\b"
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.blades",
+          "match": "\\b(print|type_of|clock)\\b"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.blades",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.blades",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.blades",
+          "match": "\\b\\d+\\.\\d+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.blades",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.blades"
+}

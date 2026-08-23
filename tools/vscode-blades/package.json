@@ -1,0 +1,30 @@
+{
+  "name": "blades-lang",
+  "displayName": "Blades Language",
+  "description": "Syntax highlighting for the Blades programming language",
+  "version": "0.1.0",
+  "publisher": "RafaelMonteiro",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "blades",
+        "aliases": ["Blades", "blades"],
+        "extensions": [".bl"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "blades",
+        "scopeName": "source.blades",
+        "path": "./syntaxes/blades.tmLanguage.json"
+      }
+    ]
+  }
+}
