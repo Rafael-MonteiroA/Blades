@@ -53,6 +53,13 @@ enum class OpCode : u8
 
     // Functions
     Call,
+    
+    // Arrays
+    BuildList,
+    GetSubscript,
+    SetSubscript,
+
+    // End of instruction
     Return
 };
 
@@ -77,5 +84,12 @@ public:
 
 std::string disassemble_chunk(const IRChunk& chunk, const std::string& name);
 std::string disassemble_instruction(const IRChunk& chunk, u32 offset);
+
+struct ObjFunction
+{
+    u32 arity = 0;
+    std::string name;
+    IRChunk chunk;
+};
 
 } // namespace blades

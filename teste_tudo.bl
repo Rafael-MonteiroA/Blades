@@ -1,0 +1,50 @@
+print("==========================================");
+print("        TESTE COMPLETO - BLADES 0.2       ");
+print("==========================================");
+print("");
+
+// 1. Funções e Cálculos
+print("1. Testando Funcoes e Recursao (Fibonacci):");
+fn fibonacci(n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+for (let i = 0; i < 7; i = i + 1) {
+    print("Fibonacci(", i, ") = ", fibonacci(i));
+}
+print("------------------------------------------");
+
+// 2. Arrays e Laços For
+print("2. Testando Arrays e Laços (For):");
+let numeros = [10, 20, 30, 40, 50];
+print("Array inicial: ", numeros);
+print("Tamanho do array: ", len(numeros));
+
+print("Multiplicando valores do array por 2...");
+for (let i = 0; i < len(numeros); i = i + 1) {
+    numeros[i] = numeros[i] * 2;
+}
+print("Array final: ", numeros);
+print("------------------------------------------");
+
+// 3. Funções Nativas (Stdlib)
+print("3. Testando Biblioteca Padrao (Random e TypeOf):");
+print("Tipo de 'numeros': ", type_of(numeros));
+print("Tipo da funcao 'fibonacci': ", type_of(fibonacci));
+
+print("Sorteando 3 numeros entre 1 e 100:");
+for (let i = 0; i < 3; i = i + 1) {
+    print("Sorteio ", i + 1, ": ", random(1, 100));
+}
+print("------------------------------------------");
+
+// 4. Interatividade
+print("4. Testando Interatividade (Input):");
+let nome = input("Para finalizarmos, digite o seu nome: ");
+print("");
+print("Incrivel, ", nome, "! Seu nome tem ", len(nome), " letras.");
+print("A linguagem Blades esta ficando fenomenal!");
+print("==========================================");

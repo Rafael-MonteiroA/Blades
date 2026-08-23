@@ -55,6 +55,9 @@ struct ExecutionState
         globals.declare("print", ValueType::Any);
         globals.declare("clock", ValueType::Any);
         globals.declare("type_of", ValueType::Any);
+        globals.declare("random", ValueType::Any);
+        globals.declare("input", ValueType::Any);
+        globals.declare("len", ValueType::Any);
         
         // Inject stdlib in VM
         register_stdlib(vm);
@@ -89,9 +92,9 @@ static InterpretResult execute_source(std::string_view source, const char* name,
     }
     
     IRGenerator generator;
-    auto chunk = generator.generate(stmts);
+    auto function = generator.generate(stmts);
     
-    return state.vm.interpret(chunk);
+    return state.vm.interpret(function);
 }
 
 static void run_repl()

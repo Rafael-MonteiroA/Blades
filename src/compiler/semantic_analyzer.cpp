@@ -190,14 +190,44 @@ std::any SemanticAnalyzer::visit(const AssignExpr& expr)
 
 std::any SemanticAnalyzer::visit(const CallExpr& expr)
 {
-    // For now, we just evaluate the callee and args.
-    // Proper function type checking requires a Function type in ValueType.
     evaluate(*expr.callee);
     for (const auto& arg : expr.arguments)
     {
         evaluate(*arg);
     }
-    return ValueType::Unknown; // Placeholder until we have Function types
+    return ValueType::Unknown; 
+}
+
+std::any SemanticAnalyzer::visit(const ArrayExpr& expr)
+{
+    for (const auto& el : expr.elements)
+    {
+        evaluate(*el);
+    }
+    return ValueType::Unknown;
+}
+
+std::any SemanticAnalyzer::visit(const SubscriptExpr& expr)
+{
+    evaluate(*expr.object);
+    ValueType idx_type = evaluate(*expr.index);
+    if (idx_type != ValueType::Int && idx_type != ValueType::Unknown)
+    {
+        throw SemanticError("Array index must be an integer.");
+    }
+    return ValueType::Unknown;
+}
+
+std::any SemanticAnalyzer::visit(const SubscriptAssignExpr& expr)
+{
+    evaluate(*expr.object);
+    ValueType idx_type = evaluate(*expr.index);
+    if (idx_type != ValueType::Int && idx_type != ValueType::Unknown)
+    {
+        throw SemanticError("Array index must be an integer.");
+    }
+    ValueType val_type = evaluate(*expr.value);
+    return val_type;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -252,12 +282,35 @@ std::any SemanticAnalyzer::visit(const IfStmt& stmt)
 
 std::any SemanticAnalyzer::visit(const WhileStmt& stmt)
 {
-    ValueType cond = evaluate(*stmt.condition);
-    if (cond != ValueType::Bool && cond != ValueType::Unknown)
+    ValueType cond_type = evaluate(*stmt.condition);
+    if (cond_type != ValueType::Bool && cond_type != ValueType::Unknown)
     {
-        throw SemanticError("Condition in 'while' statement must be a boolean.");
+        throw SemanticError("Loop condition must be a boolean.");
     }
     execute(*stmt.body);
+    return std::any();
+}
+
+std::any SemanticAnalyzer::visit(const ForStmt& stmt)
+{
+    m_symbols.begin_scope();
+    
+    if (stmt.initializer) execute(*stmt.initializer);
+    
+    if (stmt.condition)
+    {
+        ValueType cond_type = evaluate(*stmt.condition);
+        if (cond_type != ValueType::Bool && cond_type != ValueType::Unknown)
+        {
+            throw SemanticError("Loop condition must be a boolean.");
+        }
+    }
+    
+    if (stmt.increment) evaluate(*stmt.increment);
+    
+    execute(*stmt.body);
+    
+    m_symbols.end_scope();
     return std::any();
 }
 

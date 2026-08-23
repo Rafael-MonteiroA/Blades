@@ -186,6 +186,7 @@ std::unique_ptr<Stmt> Parser::statement()
     if (match(TokenType::If)) return if_statement();
     if (match(TokenType::Return)) return return_statement();
     if (match(TokenType::While)) return while_statement();
+    if (match(TokenType::For)) return for_statement();
     if (match(TokenType::LeftBrace)) return block_statement();
     
     return expression_statement();
@@ -231,6 +232,43 @@ std::unique_ptr<Stmt> Parser::while_statement()
     return std::make_unique<WhileStmt>(std::move(condition), std::move(body));
 }
 
+std::unique_ptr<Stmt> Parser::for_statement()
+{
+    consume(TokenType::LeftParen, "Expect '(' after 'for'.");
+    
+    std::unique_ptr<Stmt> initializer = nullptr;
+    if (match(TokenType::Semicolon))
+    {
+        initializer = nullptr;
+    }
+    else if (match(TokenType::Let))
+    {
+        initializer = let_declaration();
+    }
+    else
+    {
+        initializer = expression_statement();
+    }
+    
+    std::unique_ptr<Expr> condition = nullptr;
+    if (!check(TokenType::Semicolon))
+    {
+        condition = expression();
+    }
+    consume(TokenType::Semicolon, "Expect ';' after loop condition.");
+    
+    std::unique_ptr<Expr> increment = nullptr;
+    if (!check(TokenType::RightParen))
+    {
+        increment = expression();
+    }
+    consume(TokenType::RightParen, "Expect ')' after for clauses.");
+    
+    auto body = statement();
+    
+    return std::make_unique<ForStmt>(std::move(initializer), std::move(condition), std::move(increment), std::move(body));
+}
+
 std::unique_ptr<Stmt> Parser::block_statement()
 {
     std::vector<std::unique_ptr<Stmt>> statements;
@@ -269,8 +307,15 @@ std::unique_ptr<Expr> Parser::assignment()
         
         if (auto* var_expr = dynamic_cast<VariableExpr*>(expr.get()))
         {
-            Token name = var_expr->name;
-            return std::make_unique<AssignExpr>(std::move(name), std::move(value));
+            return std::make_unique<AssignExpr>(var_expr->name, std::move(value));
+        }
+        else if (auto* sub_expr = dynamic_cast<SubscriptExpr*>(expr.get()))
+        {
+            return std::make_unique<SubscriptAssignExpr>(
+                std::move(sub_expr->object), 
+                std::move(sub_expr->index), 
+                std::move(value)
+            );
         }
         
         error("Invalid assignment target.");
@@ -392,6 +437,12 @@ std::unique_ptr<Expr> Parser::call()
             Token paren = m_previous;
             expr = std::make_unique<CallExpr>(std::move(expr), std::move(paren), std::move(arguments));
         }
+        else if (match(TokenType::LeftBracket))
+        {
+            auto index = expression();
+            consume(TokenType::RightBracket, "Expect ']' after index.");
+            expr = std::make_unique<SubscriptExpr>(std::move(expr), std::move(index));
+        }
         else
         {
             break;
@@ -422,8 +473,22 @@ std::unique_ptr<Expr> Parser::primary()
         return std::make_unique<GroupingExpr>(std::move(expr));
     }
     
+    if (match(TokenType::LeftBracket))
+    {
+        std::vector<std::unique_ptr<Expr>> elements;
+        if (!check(TokenType::RightBracket))
+        {
+            do
+            {
+                elements.push_back(expression());
+            } while (match(TokenType::Comma));
+        }
+        consume(TokenType::RightBracket, "Expect ']' after array elements.");
+        return std::make_unique<ArrayExpr>(std::move(elements));
+    }
+
     error_at_current("Expect expression.");
-    return nullptr; // Unreachable
+    return nullptr;
 }
 
 } // namespace blades

@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <vector>
+#include <memory>
 
 namespace blades
 {
@@ -19,9 +20,16 @@ using Nil = std::monostate;
 struct Value;
 using NativeFn = Value(*)(const std::vector<Value>& args);
 
+struct ObjFunction;
+
+struct ObjArray
+{
+    std::vector<Value> elements;
+};
+
 struct Value
 {
-    std::variant<Nil, int, double, bool, std::string, NativeFn> data;
+    std::variant<Nil, int, double, bool, std::string, NativeFn, std::shared_ptr<ObjFunction>, std::shared_ptr<ObjArray>> data;
 
     // Constructors
     Value() : data(Nil{}) {}
@@ -32,6 +40,8 @@ struct Value
     Value(std::string s) : data(std::move(s)) {}
     Value(const char* s) : data(std::string(s)) {}
     Value(NativeFn fn) : data(fn) {}
+    Value(std::shared_ptr<ObjFunction> fn) : data(std::move(fn)) {}
+    Value(std::shared_ptr<ObjArray> arr) : data(std::move(arr)) {}
 
     // Type checking
     bool is_nil() const { return std::holds_alternative<Nil>(data); }
@@ -41,6 +51,8 @@ struct Value
     bool is_string() const { return std::holds_alternative<std::string>(data); }
     bool is_number() const { return is_int() || is_double(); }
     bool is_native_fn() const { return std::holds_alternative<NativeFn>(data); }
+    bool is_function() const { return std::holds_alternative<std::shared_ptr<ObjFunction>>(data); }
+    bool is_array() const { return std::holds_alternative<std::shared_ptr<ObjArray>>(data); }
 
     // Extraction
     int as_int() const { return std::get<int>(data); }
@@ -48,6 +60,8 @@ struct Value
     bool as_bool() const { return std::get<bool>(data); }
     const std::string& as_string() const { return std::get<std::string>(data); }
     NativeFn as_native_fn() const { return std::get<NativeFn>(data); }
+    std::shared_ptr<ObjFunction> as_function() const { return std::get<std::shared_ptr<ObjFunction>>(data); }
+    std::shared_ptr<ObjArray> as_array() const { return std::get<std::shared_ptr<ObjArray>>(data); }
     
     // Casting (e.g., getting a number as double regardless of int or double)
     double as_number() const

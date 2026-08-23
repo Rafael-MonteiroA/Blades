@@ -15,9 +15,9 @@ inline std::string generate_ir(std::string_view source)
     auto stmts = parser.parse();
     
     IRGenerator generator;
-    auto chunk = generator.generate(stmts);
+    auto function = generator.generate(stmts);
     
-    return disassemble_chunk(chunk, "Test");
+    return disassemble_chunk(function->chunk, "Test");
 }
 
 TEST_CASE("IR - expressions")

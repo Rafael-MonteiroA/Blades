@@ -67,6 +67,36 @@ std::any AstPrinter::visit(const CallExpr& expr)
     return oss.str();
 }
 
+std::any AstPrinter::visit(const ArrayExpr& expr)
+{
+    std::ostringstream oss;
+    oss << "[";
+    for (size_t i = 0; i < expr.elements.size(); ++i)
+    {
+        if (i > 0) oss << ", ";
+        oss << std::any_cast<std::string>(expr.elements[i]->accept(*this));
+    }
+    oss << "]";
+    return oss.str();
+}
+
+std::any AstPrinter::visit(const SubscriptExpr& expr)
+{
+    std::ostringstream oss;
+    oss << "(subscript " << std::any_cast<std::string>(expr.object->accept(*this)) 
+        << " " << std::any_cast<std::string>(expr.index->accept(*this)) << ")";
+    return oss.str();
+}
+
+std::any AstPrinter::visit(const SubscriptAssignExpr& expr)
+{
+    std::ostringstream oss;
+    oss << "(= (subscript " << std::any_cast<std::string>(expr.object->accept(*this)) 
+        << " " << std::any_cast<std::string>(expr.index->accept(*this)) << ") "
+        << std::any_cast<std::string>(expr.value->accept(*this)) << ")";
+    return oss.str();
+}
+
 std::any AstPrinter::visit(const ExprStmt& stmt)
 {
     std::ostringstream oss;
@@ -114,10 +144,18 @@ std::any AstPrinter::visit(const IfStmt& stmt)
 
 std::any AstPrinter::visit(const WhileStmt& stmt)
 {
-    std::ostringstream oss;
-    oss << "(while " << std::any_cast<std::string>(stmt.condition->accept(*this))
-        << " " << std::any_cast<std::string>(stmt.body->accept(*this)) << ")";
-    return oss.str();
+    std::string condition = std::any_cast<std::string>(stmt.condition->accept(*this));
+    std::string body = std::any_cast<std::string>(stmt.body->accept(*this));
+    return "(while " + condition + " " + body + ")";
+}
+
+std::any AstPrinter::visit(const ForStmt& stmt)
+{
+    std::string init = stmt.initializer ? std::any_cast<std::string>(stmt.initializer->accept(*this)) : "(no init)";
+    std::string cond = stmt.condition ? std::any_cast<std::string>(stmt.condition->accept(*this)) : "(no cond)";
+    std::string inc = stmt.increment ? std::any_cast<std::string>(stmt.increment->accept(*this)) : "(no inc)";
+    std::string body = std::any_cast<std::string>(stmt.body->accept(*this));
+    return "(for " + init + " ; " + cond + " ; " + inc + " " + body + ")";
 }
 
 std::any AstPrinter::visit(const ReturnStmt& stmt)

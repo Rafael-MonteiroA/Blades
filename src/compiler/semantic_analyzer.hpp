@@ -35,6 +35,9 @@ public:
     std::any visit(const VariableExpr& expr) override;
     std::any visit(const AssignExpr& expr) override;
     std::any visit(const CallExpr& expr) override;
+    std::any visit(const ArrayExpr& expr) override;
+    std::any visit(const SubscriptExpr& expr) override;
+    std::any visit(const SubscriptAssignExpr& expr) override;
 
     // Statements
     std::any visit(const ExprStmt& stmt) override;
@@ -42,6 +45,7 @@ public:
     std::any visit(const BlockStmt& stmt) override;
     std::any visit(const IfStmt& stmt) override;
     std::any visit(const WhileStmt& stmt) override;
+    std::any visit(const ForStmt& stmt) override;
     std::any visit(const ReturnStmt& stmt) override;
     std::any visit(const FunctionDecl& decl) override;
 

@@ -26,11 +26,11 @@ inline InterpretResult run_with_stdlib(std::string_view source, VM& vm)
     semantic.analyze(stmts);
     
     IRGenerator generator;
-    auto chunk = generator.generate(stmts);
+    auto function = generator.generate(stmts);
     
     register_stdlib(vm);
     
-    return vm.interpret(chunk);
+    return vm.interpret(function);
 }
 
 TEST_CASE("Runtime - type_of")

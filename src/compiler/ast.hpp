@@ -23,6 +23,9 @@ class GroupingExpr;
 class VariableExpr;
 class AssignExpr;
 class CallExpr;
+class ArrayExpr;
+class SubscriptExpr;
+class SubscriptAssignExpr;
 
 class Stmt;
 class ExprStmt;
@@ -30,6 +33,7 @@ class LetStmt;
 class BlockStmt;
 class IfStmt;
 class WhileStmt;
+class ForStmt;
 class ReturnStmt;
 class FunctionDecl;
 
@@ -50,6 +54,9 @@ public:
     virtual std::any visit(const VariableExpr& expr) = 0;
     virtual std::any visit(const AssignExpr& expr) = 0;
     virtual std::any visit(const CallExpr& expr) = 0;
+    virtual std::any visit(const ArrayExpr& expr) = 0;
+    virtual std::any visit(const SubscriptExpr& expr) = 0;
+    virtual std::any visit(const SubscriptAssignExpr& expr) = 0;
 
     // Statements
     virtual std::any visit(const ExprStmt& stmt) = 0;
@@ -57,6 +64,7 @@ public:
     virtual std::any visit(const BlockStmt& stmt) = 0;
     virtual std::any visit(const IfStmt& stmt) = 0;
     virtual std::any visit(const WhileStmt& stmt) = 0;
+    virtual std::any visit(const ForStmt& stmt) = 0;
     virtual std::any visit(const ReturnStmt& stmt) = 0;
     virtual std::any visit(const FunctionDecl& decl) = 0;
 };
@@ -156,6 +164,39 @@ public:
     std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
 };
 
+class ArrayExpr : public Expr
+{
+public:
+    std::vector<std::unique_ptr<Expr>> elements;
+    
+    explicit ArrayExpr(std::vector<std::unique_ptr<Expr>> elements)
+        : elements(std::move(elements)) {}
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
+class SubscriptExpr : public Expr
+{
+public:
+    std::unique_ptr<Expr> object;
+    std::unique_ptr<Expr> index;
+    
+    SubscriptExpr(std::unique_ptr<Expr> object, std::unique_ptr<Expr> index)
+        : object(std::move(object)), index(std::move(index)) {}
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
+class SubscriptAssignExpr : public Expr
+{
+public:
+    std::unique_ptr<Expr> object;
+    std::unique_ptr<Expr> index;
+    std::unique_ptr<Expr> value;
+    
+    SubscriptAssignExpr(std::unique_ptr<Expr> object, std::unique_ptr<Expr> index, std::unique_ptr<Expr> value)
+        : object(std::move(object)), index(std::move(index)), value(std::move(value)) {}
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Statements
 // ─────────────────────────────────────────────────────────────────────────────
@@ -218,6 +259,20 @@ public:
     std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
 };
 
+class ForStmt : public Stmt
+{
+public:
+    std::unique_ptr<Stmt> initializer;
+    std::unique_ptr<Expr> condition;
+    std::unique_ptr<Expr> increment;
+    std::unique_ptr<Stmt> body;
+
+    ForStmt(std::unique_ptr<Stmt> init, std::unique_ptr<Expr> cond, std::unique_ptr<Expr> inc, std::unique_ptr<Stmt> b)
+        : initializer(std::move(init)), condition(std::move(cond)), increment(std::move(inc)), body(std::move(b)) {}
+
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
 class ReturnStmt : public Stmt
 {
 public:
@@ -257,12 +312,16 @@ public:
     std::any visit(const VariableExpr& expr) override;
     std::any visit(const AssignExpr& expr) override;
     std::any visit(const CallExpr& expr) override;
+    std::any visit(const ArrayExpr& expr) override;
+    std::any visit(const SubscriptExpr& expr) override;
+    std::any visit(const SubscriptAssignExpr& expr) override;
 
     std::any visit(const ExprStmt& stmt) override;
     std::any visit(const LetStmt& stmt) override;
     std::any visit(const BlockStmt& stmt) override;
     std::any visit(const IfStmt& stmt) override;
     std::any visit(const WhileStmt& stmt) override;
+    std::any visit(const ForStmt& stmt) override;
     std::any visit(const ReturnStmt& stmt) override;
     std::any visit(const FunctionDecl& decl) override;
 };

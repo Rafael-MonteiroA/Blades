@@ -7,6 +7,7 @@
 #include <vector>
 #include <unordered_map>
 #include <string>
+#include <memory>
 
 #include "compiler/ir.hpp"
 #include "backend/value.hpp"
@@ -21,10 +22,17 @@ enum class InterpretResult
     RuntimeError
 };
 
+struct CallFrame
+{
+    std::shared_ptr<ObjFunction> function;
+    u32 ip = 0;
+    u32 slots_offset = 0;
+};
+
 class VM
 {
 public:
-    InterpretResult interpret(const IRChunk& chunk);
+    InterpretResult interpret(std::shared_ptr<ObjFunction> function);
 
     // Expose for testing
     const std::unordered_map<std::string, Value>& get_globals() const { return m_globals; }
@@ -33,8 +41,7 @@ public:
     void define_native(const std::string& name, NativeFn function);
 
 private:
-    const IRChunk* m_chunk = nullptr;
-    u32 m_ip = 0;
+    std::vector<CallFrame> m_frames;
     std::vector<Value> m_stack;
     std::unordered_map<std::string, Value> m_globals;
 

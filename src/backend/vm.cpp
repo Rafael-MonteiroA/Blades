@@ -26,9 +26,16 @@ Value VM::peek(int distance) const
 void VM::runtime_error(const char* message)
 {
     std::cerr << "Runtime Error: " << message << "\n";
-    if (m_chunk && m_ip < m_chunk->code.size())
+    for (int i = static_cast<int>(m_frames.size()) - 1; i >= 0; i--)
     {
-        std::cerr << "[line " << m_chunk->code[m_ip].source_line << "] in script\n";
+        CallFrame& frame = m_frames[i];
+        u32 instruction = frame.ip > 0 ? frame.ip - 1 : 0;
+        if (instruction < frame.function->chunk.code.size())
+        {
+            std::cerr << "[line " << frame.function->chunk.code[instruction].source_line << "] in ";
+            if (frame.function->name.empty()) std::cerr << "script\n";
+            else std::cerr << frame.function->name << "()\n";
+        }
     }
 }
 
@@ -37,19 +44,21 @@ void VM::define_native(const std::string& name, NativeFn function)
     m_globals[name] = Value(function);
 }
 
-InterpretResult VM::interpret(const IRChunk& chunk)
+InterpretResult VM::interpret(std::shared_ptr<ObjFunction> function)
 {
-    m_chunk = &chunk;
-    m_ip = 0;
+    m_frames.clear();
+    // The top-level script is a function. We push it to the stack first so it can be popped on return.
+    push(Value(function));
+    m_frames.push_back(CallFrame{function, 0, 0}); // slots_offset is 0, callee at 0
     return run();
 }
 
 InterpretResult VM::run()
 {
-    #define READ_INSTRUCTION() (m_chunk->code[m_ip++])
-    #define READ_CONSTANT(operand) (m_chunk->constants[operand])
+    #define READ_INSTRUCTION() (m_frames.back().function->chunk.code[m_frames.back().ip++])
+    #define READ_CONSTANT(operand) (m_frames.back().function->chunk.constants[operand])
     
-    while (m_ip < m_chunk->code.size())
+    while (m_frames.back().ip < m_frames.back().function->chunk.code.size())
     {
         Instruction inst = READ_INSTRUCTION();
         
@@ -93,14 +102,8 @@ InterpretResult VM::run()
                 Value a = pop();
                 if (a.is_number() && b.is_number())
                 {
-                    if (a.is_double() || b.is_double())
-                    {
-                        push(Value(a.as_number() - b.as_number()));
-                    }
-                    else
-                    {
-                        push(Value(a.as_int() - b.as_int()));
-                    }
+                    if (a.is_double() || b.is_double()) push(Value(a.as_number() - b.as_number()));
+                    else push(Value(a.as_int() - b.as_int()));
                 }
                 else
                 {
@@ -115,14 +118,8 @@ InterpretResult VM::run()
                 Value a = pop();
                 if (a.is_number() && b.is_number())
                 {
-                    if (a.is_double() || b.is_double())
-                    {
-                        push(Value(a.as_number() * b.as_number()));
-                    }
-                    else
-                    {
-                        push(Value(a.as_int() * b.as_int()));
-                    }
+                    if (a.is_double() || b.is_double()) push(Value(a.as_number() * b.as_number()));
+                    else push(Value(a.as_int() * b.as_int()));
                 }
                 else
                 {
@@ -142,15 +139,8 @@ InterpretResult VM::run()
                         runtime_error("Division by zero.");
                         return InterpretResult::RuntimeError;
                     }
-                    
-                    if (a.is_double() || b.is_double())
-                    {
-                        push(Value(a.as_number() / b.as_number()));
-                    }
-                    else
-                    {
-                        push(Value(a.as_int() / b.as_int()));
-                    }
+                    if (a.is_double() || b.is_double()) push(Value(a.as_number() / b.as_number()));
+                    else push(Value(a.as_int() / b.as_int()));
                 }
                 else
                 {
@@ -166,7 +156,6 @@ InterpretResult VM::run()
                     runtime_error("Operand must be a number.");
                     return InterpretResult::RuntimeError;
                 }
-                
                 Value v = pop();
                 if (v.is_double()) push(Value(-v.as_double()));
                 else push(Value(-v.as_int()));
@@ -177,7 +166,7 @@ InterpretResult VM::run()
                 Value v = pop();
                 if (v.is_bool()) push(Value(!v.as_bool()));
                 else if (v.is_nil()) push(Value(true));
-                else push(Value(false)); // Truthiness: non-nil/non-false are true, so Not is false
+                else push(Value(false));
                 break;
             }
             case OpCode::Equal:
@@ -257,12 +246,85 @@ InterpretResult VM::run()
             }
             case OpCode::GetLocal:
             {
-                push(m_stack[inst.operand]);
+                push(m_stack[m_frames.back().slots_offset + inst.operand]);
                 break;
             }
             case OpCode::SetLocal:
             {
-                m_stack[inst.operand] = peek(0);
+                u32 slot = m_frames.back().slots_offset + inst.operand;
+                m_stack[slot] = peek(0);
+                break;
+            }
+            case OpCode::BuildList:
+            {
+                u32 count = inst.operand;
+                auto arr = std::make_shared<ObjArray>();
+                arr->elements.reserve(count);
+                for (u32 i = 0; i < count; ++i)
+                {
+                    arr->elements.push_back(m_stack[m_stack.size() - count + i]);
+                }
+                for (u32 i = 0; i < count; ++i)
+                {
+                    m_stack.pop_back();
+                }
+                push(Value(arr));
+                break;
+            }
+            case OpCode::GetSubscript:
+            {
+                Value index = pop();
+                Value object = pop();
+                
+                if (!object.is_array())
+                {
+                    std::cerr << "Runtime Error: Object is not subscriptable.\n";
+                    return InterpretResult::RuntimeError;
+                }
+                if (!index.is_int())
+                {
+                    std::cerr << "Runtime Error: Array index must be an integer.\n";
+                    return InterpretResult::RuntimeError;
+                }
+                
+                int idx = index.as_int();
+                auto arr = object.as_array();
+                if (idx < 0 || idx >= static_cast<int>(arr->elements.size()))
+                {
+                    std::cerr << "Runtime Error: Index out of bounds.\n";
+                    return InterpretResult::RuntimeError;
+                }
+                
+                push(arr->elements[idx]);
+                break;
+            }
+            case OpCode::SetSubscript:
+            {
+                Value value = pop();
+                Value index = pop();
+                Value object = pop();
+                
+                if (!object.is_array())
+                {
+                    std::cerr << "Runtime Error: Object is not subscriptable.\n";
+                    return InterpretResult::RuntimeError;
+                }
+                if (!index.is_int())
+                {
+                    std::cerr << "Runtime Error: Array index must be an integer.\n";
+                    return InterpretResult::RuntimeError;
+                }
+                
+                int idx = index.as_int();
+                auto arr = object.as_array();
+                if (idx < 0 || idx >= static_cast<int>(arr->elements.size()))
+                {
+                    std::cerr << "Runtime Error: Index out of bounds.\n";
+                    return InterpretResult::RuntimeError;
+                }
+                
+                arr->elements[idx] = value;
+                push(value);
                 break;
             }
             case OpCode::Pop:
@@ -272,59 +334,78 @@ InterpretResult VM::run()
             }
             case OpCode::Jump:
             {
-                u32 offset = inst.operand;
-                m_ip += offset;
+                m_frames.back().ip += inst.operand;
                 break;
             }
             case OpCode::JumpIfFalse:
             {
-                u32 offset = inst.operand;
                 Value condition = peek(0);
-                
-                // Pop the condition? Wait, IR block statement doesn't pop it automatically yet, 
-                // but actually our IR compiler pops or leaves it. If we leave it on stack, we have stack leak.
-                // Normally a jumpIfFalse leaves the value on stack for short circuit OR/AND, but for IF it pops.
-                // Our IRGenerator doesn't emit POP. Let's just pop it here for simplicity in this minimal VM.
-                pop();
-                
+                pop(); // Consome a condicao do stack (simples para este compilador)
                 bool is_truthy = true;
                 if (condition.is_nil()) is_truthy = false;
                 else if (condition.is_bool()) is_truthy = condition.as_bool();
                 
                 if (!is_truthy)
                 {
-                    m_ip += offset;
+                    m_frames.back().ip += inst.operand;
                 }
                 break;
             }
             case OpCode::Loop:
             {
-                u32 offset = inst.operand;
-                m_ip -= offset;
+                m_frames.back().ip -= inst.operand;
                 break;
             }
             case OpCode::Return:
             {
-                // We're done (for a single top-level script chunk)
-                return InterpretResult::Ok;
+                Value result = pop(); // Return value
+                
+                u32 slots_offset = m_frames.back().slots_offset;
+                m_frames.pop_back();
+                
+                if (m_frames.empty())
+                {
+                    return InterpretResult::Ok; // Top level script finished
+                }
+                
+                // Pop locals, arguments, and the callee
+                while (m_stack.size() > slots_offset)
+                {
+                    m_stack.pop_back();
+                }
+                
+                push(result); // Put return value where the callee was
+                break;
             }
             case OpCode::Call:
             {
                 u32 arg_count = inst.operand;
-                std::vector<Value> args(arg_count);
+                Value callee = peek(arg_count);
                 
-                // Pop arguments in reverse order (top of stack is last argument)
-                for (int i = arg_count - 1; i >= 0; --i)
-                {
-                    args[i] = pop();
-                }
-                
-                Value callee = pop();
                 if (callee.is_native_fn())
                 {
+                    std::vector<Value> args(arg_count);
+                    for (int i = arg_count - 1; i >= 0; --i)
+                    {
+                        args[i] = pop();
+                    }
+                    pop(); // Pop callee
+                    
                     NativeFn native = callee.as_native_fn();
                     Value result = native(args);
                     push(result);
+                }
+                else if (callee.is_function())
+                {
+                    std::shared_ptr<ObjFunction> function = callee.as_function();
+                    if (arg_count != function->arity)
+                    {
+                        runtime_error("Expected different number of arguments.");
+                        return InterpretResult::RuntimeError;
+                    }
+                    
+                    u32 slots_offset = static_cast<u32>(m_stack.size()) - arg_count - 1;
+                    m_frames.push_back(CallFrame{function, 0, slots_offset});
                 }
                 else
                 {

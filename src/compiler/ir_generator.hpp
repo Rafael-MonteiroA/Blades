@@ -21,10 +21,17 @@ struct Local
     int depth;
 };
 
+struct CompilerState
+{
+    std::shared_ptr<ObjFunction> function;
+    std::vector<Local> locals;
+    int scope_depth = 0;
+};
+
 class IRGenerator : public AstVisitor
 {
 public:
-    IRChunk generate(const std::vector<std::unique_ptr<Stmt>>& statements);
+    std::shared_ptr<ObjFunction> generate(const std::vector<std::unique_ptr<Stmt>>& statements);
 
     // Expressions
     std::any visit(const LiteralExpr& expr) override;
@@ -34,6 +41,9 @@ public:
     std::any visit(const VariableExpr& expr) override;
     std::any visit(const AssignExpr& expr) override;
     std::any visit(const CallExpr& expr) override;
+    std::any visit(const ArrayExpr& expr) override;
+    std::any visit(const SubscriptExpr& expr) override;
+    std::any visit(const SubscriptAssignExpr& expr) override;
 
     // Statements
     std::any visit(const ExprStmt& stmt) override;
@@ -41,55 +51,57 @@ public:
     std::any visit(const BlockStmt& stmt) override;
     std::any visit(const IfStmt& stmt) override;
     std::any visit(const WhileStmt& stmt) override;
+    std::any visit(const ForStmt& stmt) override;
     std::any visit(const ReturnStmt& stmt) override;
     std::any visit(const FunctionDecl& decl) override;
 
 private:
-    IRChunk m_chunk;
-    
-    std::vector<Local> m_locals;
-    int m_scope_depth = 0;
+    std::vector<std::unique_ptr<CompilerState>> m_compiler_stack;
+
+    CompilerState* current() { return m_compiler_stack.back().get(); }
+    IRChunk* current_chunk() { return &current()->function->chunk; }
 
     void emit(OpCode op, u32 line)
     {
-        m_chunk.write(op, 0, line);
+        current_chunk()->write(op, 0, line);
     }
     
     void emit(OpCode op, u32 operand, u32 line)
     {
-        m_chunk.write(op, operand, line);
+        current_chunk()->write(op, operand, line);
     }
     
     u32 emit_jump(OpCode op, u32 line)
     {
         emit(op, 0xffff, line); // Placeholder
-        return static_cast<u32>(m_chunk.code.size() - 1);
+        return static_cast<u32>(current_chunk()->code.size() - 1);
     }
     
     void patch_jump(u32 offset)
     {
         // Jump is relative to the instruction AFTER the jump instruction
-        u32 jump = static_cast<u32>(m_chunk.code.size()) - 1 - offset;
-        m_chunk.code[offset].operand = jump;
+        u32 jump = static_cast<u32>(current_chunk()->code.size()) - 1 - offset;
+        current_chunk()->code[offset].operand = jump;
     }
     
     void emit_loop(u32 loop_start, u32 line)
     {
         // loop_start is absolute index, we calculate offset backwards from IP AFTER instruction
-        u32 jump = static_cast<u32>(m_chunk.code.size()) + 1 - loop_start;
+        u32 jump = static_cast<u32>(current_chunk()->code.size()) + 1 - loop_start;
         emit(OpCode::Loop, jump, line);
     }
 
     u32 make_constant(Value value)
     {
-        return m_chunk.add_constant(std::move(value));
+        return current_chunk()->add_constant(std::move(value));
     }
     
     int resolve_local(const std::string& name)
     {
-        for (int i = static_cast<int>(m_locals.size()) - 1; i >= 0; --i)
+        auto* comp = current();
+        for (int i = static_cast<int>(comp->locals.size()) - 1; i >= 0; --i)
         {
-            if (m_locals[i].name == name)
+            if (comp->locals[i].name == name)
             {
                 return i;
             }

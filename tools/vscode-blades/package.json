@@ -15,6 +15,17 @@
     "onLanguage:blades"
   ],
   "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "Blades Configuration",
+      "properties": {
+        "blades.executablePath": {
+          "type": "string",
+          "default": "",
+          "description": "Caminho absoluto para o executável do Blades (ex: C:\\blades\\blades.exe)."
+        }
+      }
+    },
     "languages": [
       {
         "id": "blades",

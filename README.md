@@ -24,22 +24,23 @@ O projeto foi construído inteiramente do zero, passando por todas as etapas fun
 ## Exemplo de Código
 
 ```js
-// Calculando e imprimindo laços de forma elegante
-let limite = 5;
-let i = 0;
-
-print("Iniciando a contagem...");
-
-while (i < limite) {
-    if (i == 3) {
-        print("Metade do caminho: ", i);
-    }
-    i = i + 1;
+// Definindo funções recursivas
+fn fibonacci(n) {
+    if (n <= 1) { return n; }
+    return fibonacci(n - 1) + fibonacci(n - 2);
 }
 
-// Inspecionando tipos em tempo real
-let tipo = type_of(limite);
-print("A variavel limite eh do tipo: ", tipo);
+// Declarando arrays e usando laços for
+let limites = [3, 5, 7];
+print("Calculando Fibonacci para os limites:", limites);
+
+for (let i = 0; i < len(limites); i = i + 1) {
+    print("Fibonacci(", limites[i], ") = ", fibonacci(limites[i]));
+}
+
+// Inspecionando tipos dinamicamente
+let tipo = type_of(limites);
+print("A variavel 'limites' eh do tipo: ", tipo);
 ```
 
 ## Arquitetura do Compilador
@@ -90,5 +91,6 @@ O projeto usa um framework de testes customizado para atestar todos os stages do
 
 Se sinta à vontade para abrir pull requests! 
 Atualmente, as maiores necessidades do interpretador são:
-- Suporte a definições e chamadas de `fn` criadas pelo usuário (A estrutura de Parser já suporta!).
-- Tipos de dados complexos (Arrays, Dicionários e Structs/Classes).
+- Tipos de dados complexos: Dicionários (Hash Maps).
+- Orientação a Objetos (Classes, Métodos e Instâncias).
+- Pacotes de extensão (importação de módulos).

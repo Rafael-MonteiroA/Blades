@@ -14,8 +14,15 @@ function activate(context) {
         const document = editor.document;
         const filePath = document.fileName;
         
-        // Caminho do executável do Blades
-        const bladesExe = "C:\\Users\\rafab\\Downloads\\blades\\build\\bin\\Debug\\blades.exe";
+        // Lê a configuração do executável do Blades
+        const config = vscode.workspace.getConfiguration('blades');
+        let bladesExe = config.get('executablePath');
+        
+        if (!bladesExe || bladesExe.trim() === '') {
+            // Caminho hardcoded temporário apenas enquanto você desenvolve.
+            // Para o público, eles terão que configurar o caminho ou ter o blades no PATH.
+            bladesExe = "C:\\Users\\rafab\\Downloads\\blades\\build\\bin\\Debug\\blades.exe";
+        }
 
         // Cria ou reutiliza o terminal do Blades
         const terminalName = "Blades Engine";

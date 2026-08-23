@@ -16,9 +16,9 @@ inline InterpretResult run_vm(std::string_view source, VM& vm)
     auto stmts = parser.parse();
     
     IRGenerator generator;
-    auto chunk = generator.generate(stmts);
+    auto function = generator.generate(stmts);
     
-    return vm.interpret(chunk);
+    return vm.interpret(function);
 }
 
 TEST_CASE("VM - Evaluate expressions")
@@ -84,6 +84,36 @@ TEST_CASE("VM - Control Flow (While)")
     ASSERT_EQ(run_vm(src, vm), InterpretResult::Ok);
     ASSERT_EQ(vm.get_globals().at("sum").as_int(), 10); // 0 + 1 + 2 + 3 + 4 = 10
     ASSERT_EQ(vm.get_globals().at("i").as_int(), 5);
+}
+
+TEST_CASE("VM - Control Flow (For)")
+{
+    VM vm;
+    
+    const char* src = 
+        "let sum = 0;"
+        "for (let i = 0; i < 5; i = i + 1) {"
+        "  sum = sum + i;"
+        "}";
+        
+    ASSERT_EQ(run_vm(src, vm), InterpretResult::Ok);
+    ASSERT_EQ(vm.get_globals().at("sum").as_int(), 10); // 0 + 1 + 2 + 3 + 4 = 10
+    // 'i' is local to the for loop, so it shouldn't be in globals.
+}
+
+TEST_CASE("VM - Arrays")
+{
+    VM vm;
+    
+    const char* src = 
+        "let arr = [1, 2, 3];"
+        "let sum = arr[0] + arr[1] + arr[2];"
+        "arr[0] = 10;"
+        "let new_sum = arr[0] + arr[1] + arr[2];";
+        
+    ASSERT_EQ(run_vm(src, vm), InterpretResult::Ok);
+    ASSERT_EQ(vm.get_globals().at("sum").as_int(), 6);
+    ASSERT_EQ(vm.get_globals().at("new_sum").as_int(), 15);
 }
 
 } // namespace blades::test

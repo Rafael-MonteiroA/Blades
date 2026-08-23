@@ -1,0 +1,11 @@
+fn fib(n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+let start = clock();
+print("Iniciando calculo da Sequencia de Fibonacci...");
+print("fib(20) = ", fib(20));
+print("Tempo de execucao (VM): ", clock() - start, " segundos.");
