@@ -64,14 +64,41 @@ struct ExecutionState
         globals.declare("window_init", ValueType::Any);
         globals.declare("window_should_close", ValueType::Any);
         globals.declare("window_close", ValueType::Any);
+        
+        globals.declare("is_key_down", ValueType::Any);
+        globals.declare("is_key_pressed", ValueType::Any);
+        globals.declare("get_frame_time", ValueType::Any);
+        
+        globals.declare("disable_cursor", ValueType::Any);
+        globals.declare("enable_cursor", ValueType::Any);
+        globals.declare("is_mouse_button_pressed", ValueType::Any);
+        globals.declare("distance_3d", ValueType::Any);
+        
+        globals.declare("init_audio", ValueType::Any);
+        globals.declare("play_sound", ValueType::Any);
+        
         globals.declare("begin_drawing", ValueType::Any);
         globals.declare("end_drawing", ValueType::Any);
         globals.declare("clear_background", ValueType::Any);
+        globals.declare("draw_text", ValueType::Any);
         globals.declare("draw_circle", ValueType::Any);
         globals.declare("draw_rectangle", ValueType::Any);
+        
         globals.declare("begin_mode_3d", ValueType::Any);
         globals.declare("end_mode_3d", ValueType::Any);
+        
+        globals.declare("update_camera_first_person", ValueType::Any);
+        globals.declare("get_camera_x", ValueType::Any);
+        globals.declare("get_camera_y", ValueType::Any);
+        globals.declare("get_camera_z", ValueType::Any);
+        globals.declare("set_camera_position", ValueType::Any);
+        globals.declare("init_camera", ValueType::Any);
+        
+        globals.declare("draw_sphere", ValueType::Any);
         globals.declare("draw_cube", ValueType::Any);
+        globals.declare("draw_cube_texture", ValueType::Any);
+        globals.declare("draw_billboard", ValueType::Any);
+        globals.declare("load_texture", ValueType::Any);
         globals.declare("draw_line_3d", ValueType::Any);
         
         // Inject modules in VM
