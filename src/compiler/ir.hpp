@@ -26,6 +26,12 @@ enum class OpCode : u8
     Multiply,
     Divide,
     Negate,
+    BitAnd,
+    BitOr,
+    BitXor,
+    BitNot,
+    ShiftLeft,
+    ShiftRight,
 
     // Logic
     Not,
@@ -45,14 +51,22 @@ enum class OpCode : u8
     GetLocal,
     SetLocal,
     Pop,
+    Dup,
 
     // Control flow
     Jump,
     JumpIfFalse,
     Loop,
+    BitwiseNot,
+    
+    Yield, // Suspend current fiber
 
-    // Functions
+    // Functions & Closures
     Call,
+    Closure,
+    GetUpvalue,
+    SetUpvalue,
+    CloseUpvalue,
     
     // Arrays & Dicts
     BuildList,
@@ -92,11 +106,17 @@ public:
 std::string disassemble_chunk(const IRChunk& chunk, const std::string& name);
 std::string disassemble_instruction(const IRChunk& chunk, u32 offset);
 
+struct CapturedUpvalue {
+    u32 index;
+    bool is_local;
+};
+
 struct ObjFunction
 {
     u32 arity = 0;
     std::string name;
     IRChunk chunk;
+    std::vector<CapturedUpvalue> captured_upvalues;
 };
 
 } // namespace blades

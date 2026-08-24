@@ -1,0 +1,33 @@
+print("==========================================");
+print("        TESTE BLADES - POO (Classes)      ");
+print("==========================================");
+
+class Personagem {
+    fn init(nome, vida) {
+        this.nome = nome;
+        this.vida = vida;
+    }
+
+    fn atacar() {
+        print(this.nome, "atacou com espada!");
+    }
+
+    fn sofrer_dano(dano) {
+        this.vida = this.vida - dano;
+        print(this.nome, "sofreu", dano, "de dano. Vida restante:", this.vida);
+    }
+}
+
+print("Instanciando Heroi...");
+let heroi = Personagem("Arthur", 100);
+
+print("Tipo do heroi:", type_of(heroi));
+print("Nome:", heroi.nome);
+print("Vida:", heroi.vida);
+
+print("------------------------------------------");
+heroi.atacar();
+heroi.sofrer_dano(25);
+heroi.sofrer_dano(15);
+print("Vida final do", heroi.nome, "eh", heroi.vida);
+print("==========================================");

@@ -1,0 +1,8 @@
+fn counter() {
+    print("Start");
+    yield 1;
+    print("Middle");
+    yield 2;
+    print("End");
+}
+let c = counter();

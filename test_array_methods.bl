@@ -1,0 +1,8 @@
+let arr = [1, 2, 3];
+print("Length:", arr.length);
+array_push(arr, 4);
+print("New Length:", arr.length);
+print("Last element:", arr[3]);
+let last = array_pop(arr);
+print("Popped:", last);
+print("Final Length:", arr.length);

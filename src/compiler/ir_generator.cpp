@@ -70,6 +70,11 @@ std::any IRGenerator::visit(const BinaryExpr& expr)
         case TokenType::GreaterEqual: emit(OpCode::GreaterEqual, line); break;
         case TokenType::Less:         emit(OpCode::Less, line); break;
         case TokenType::LessEqual:    emit(OpCode::LessEqual, line); break;
+        case TokenType::Ampersand:    emit(OpCode::BitAnd, line); break;
+        case TokenType::Pipe:         emit(OpCode::BitOr, line); break;
+        case TokenType::Caret:        emit(OpCode::BitXor, line); break;
+        case TokenType::LessLess:     emit(OpCode::ShiftLeft, line); break;
+        case TokenType::GreaterGreater: emit(OpCode::ShiftRight, line); break;
         default: break;
     }
     return std::any();
@@ -83,6 +88,7 @@ std::any IRGenerator::visit(const UnaryExpr& expr)
     {
         case TokenType::Minus: emit(OpCode::Negate, line); break;
         case TokenType::Bang:  emit(OpCode::Not, line); break;
+        case TokenType::Tilde: emit(OpCode::BitNot, line); break;
         default: break;
     }
     return std::any();
@@ -102,8 +108,13 @@ std::any IRGenerator::visit(const VariableExpr& expr)
     if (arg != -1) emit(OpCode::GetLocal, static_cast<u32>(arg), expr.name.span.start.line);
     else
     {
-        u32 index = make_constant(Value(name));
-        emit(OpCode::GetGlobal, index, expr.name.span.start.line);
+        int upvalue = resolve_upvalue(static_cast<int>(m_compiler_stack.size()) - 1, name);
+        if (upvalue != -1) emit(OpCode::GetUpvalue, static_cast<u32>(upvalue), expr.name.span.start.line);
+        else
+        {
+            u32 index = make_constant(Value(name));
+            emit(OpCode::GetGlobal, index, expr.name.span.start.line);
+        }
     }
     return std::any();
 }
@@ -117,8 +128,13 @@ std::any IRGenerator::visit(const AssignExpr& expr)
     if (arg != -1) emit(OpCode::SetLocal, static_cast<u32>(arg), expr.name.span.start.line);
     else
     {
-        u32 index = make_constant(Value(name));
-        emit(OpCode::SetGlobal, index, expr.name.span.start.line);
+        int upvalue = resolve_upvalue(static_cast<int>(m_compiler_stack.size()) - 1, name);
+        if (upvalue != -1) emit(OpCode::SetUpvalue, static_cast<u32>(upvalue), expr.name.span.start.line);
+        else
+        {
+            u32 index = make_constant(Value(name));
+            emit(OpCode::SetGlobal, index, expr.name.span.start.line);
+        }
     }
     return std::any();
 }
@@ -241,8 +257,12 @@ std::any IRGenerator::visit(const BlockStmt& stmt)
     // Pop locals
     while (!current()->locals.empty() && current()->locals.back().depth > current()->scope_depth)
     {
+        if (current()->locals.back().is_captured) {
+            emit(OpCode::CloseUpvalue, 0, 0);
+        } else {
+            emit(OpCode::Pop, 0, 0); // Clean the stack
+        }
         current()->locals.pop_back();
-        emit(OpCode::Pop, 0, 0); // Clean the stack
     }
     return std::any();
 }
@@ -312,8 +332,12 @@ std::any IRGenerator::visit(const ForStmt& stmt)
     current()->scope_depth--;
     while (!current()->locals.empty() && current()->locals.back().depth > current()->scope_depth)
     {
+        if (current()->locals.back().is_captured) {
+            emit(OpCode::CloseUpvalue, 0, 0);
+        } else {
+            emit(OpCode::Pop, 0, 0);
+        }
         current()->locals.pop_back();
-        emit(OpCode::Pop, 0, 0);
     }
     
     return std::any();
@@ -362,11 +386,12 @@ std::any IRGenerator::visit(const FunctionDecl& decl)
     emit(OpCode::Return, 0); 
     
     auto func = current()->function;
+    func->captured_upvalues = current()->upvalues;
     m_compiler_stack.pop_back();
     
     // Now back to outer compiler context
     u32 func_idx = make_constant(Value(func));
-    emit(OpCode::Constant, func_idx, decl.name.span.start.line);
+    emit(OpCode::Closure, func_idx, decl.name.span.start.line);
     
     if (current()->scope_depth > 0)
     {
@@ -377,6 +402,41 @@ std::any IRGenerator::visit(const FunctionDecl& decl)
         u32 name_idx = make_constant(Value(std::string(decl.name.lexeme)));
         emit(OpCode::DefineGlobal, name_idx, decl.name.span.start.line);
     }
+    
+    return std::any();
+}
+
+std::any IRGenerator::visit(const FnExpr& expr)
+{
+    auto new_state = std::make_unique<CompilerState>();
+    new_state->function = std::make_shared<ObjFunction>();
+    new_state->function->name = "";
+    new_state->function->arity = static_cast<u32>(expr.params.size());
+    
+    new_state->locals.push_back(Local{"", 0});
+    new_state->scope_depth = 1;
+    for (const auto& param : expr.params)
+    {
+        new_state->locals.push_back(Local{std::string(param.lexeme), 1});
+    }
+    
+    m_compiler_stack.push_back(std::move(new_state));
+    
+    for (const auto& s : expr.body->statements)
+    {
+        s->accept(*this);
+    }
+    
+    u32 idx = make_constant(Value(Nil{}));
+    emit(OpCode::Constant, idx, 0);
+    emit(OpCode::Return, 0); 
+    
+    auto func = current()->function;
+    func->captured_upvalues = current()->upvalues;
+    m_compiler_stack.pop_back();
+    
+    u32 func_idx = make_constant(Value(func));
+    emit(OpCode::Closure, func_idx, 0);
     
     return std::any();
 }
@@ -415,16 +475,81 @@ std::any IRGenerator::visit(const ClassDecl& decl)
         emit(OpCode::Return, 0, decl.name.span.start.line);
         
         auto method_func = m_compiler_stack.back()->function;
+        method_func->captured_upvalues = m_compiler_stack.back()->upvalues;
         m_compiler_stack.pop_back();
         
         // Load the class back on top of the stack
         emit(OpCode::GetGlobal, name_idx, decl.name.span.start.line);
         
         u32 func_idx = make_constant(Value(method_func));
-        emit(OpCode::Constant, func_idx, method->name.span.start.line);
+        emit(OpCode::Closure, func_idx, method->name.span.start.line);
         
         u32 method_name_idx = make_constant(Value(std::string(method->name.lexeme)));
         emit(OpCode::Method, method_name_idx, method->name.span.start.line);
+    }
+    
+    return std::any();
+}
+
+std::any IRGenerator::visit(const ImportStmt& stmt)
+{
+    (void)stmt;
+    return std::any();
+}
+
+std::any IRGenerator::visit(const YieldExpr& expr)
+{
+    if (expr.value)
+    {
+        expr.value->accept(*this);
+    }
+    else
+    {
+        u32 idx = make_constant(Value(Nil{}));
+        emit(OpCode::Constant, idx, expr.keyword.span.start.line);
+    }
+    
+    emit(OpCode::Yield, expr.keyword.span.start.line);
+    return std::any();
+}
+
+std::any IRGenerator::visit(const MatchExpr& expr)
+{
+    expr.value->accept(*this);
+    u32 line = expr.keyword.span.start.line;
+    
+    std::vector<u32> end_jumps;
+    
+    for (const auto& arm : expr.arms)
+    {
+        if (arm.pattern)
+        {
+            emit(OpCode::Dup, line);
+            arm.pattern->accept(*this);
+            emit(OpCode::Equal, line);
+            
+            u32 jump_if_false = emit_jump(OpCode::JumpIfFalse, line);
+            
+            // Match successful: pop the original match value and execute body
+            emit(OpCode::Pop, line);
+            arm.body->accept(*this);
+            end_jumps.push_back(emit_jump(OpCode::Jump, line));
+            
+            // Patch for next arm
+            patch_jump(jump_if_false);
+        }
+        else
+        {
+            // Default arm '_'
+            emit(OpCode::Pop, line);
+            arm.body->accept(*this);
+            end_jumps.push_back(emit_jump(OpCode::Jump, line));
+        }
+    }
+    
+    for (u32 jump : end_jumps)
+    {
+        patch_jump(jump);
     }
     
     return std::any();

@@ -24,24 +24,26 @@ enum class TokenType
     LeftBracket, RightBracket,
     Comma, Dot, Minus, Plus,
     Semicolon, Slash, Star,
-    Colon,
+    Colon, Ampersand, Pipe, Caret, Tilde,
 
     // One or two character tokens
     Bang, BangEqual,
     Equal, EqualEqual,
-    Greater, GreaterEqual,
-    Less, LessEqual,
+    Greater, GreaterEqual, GreaterGreater,
+    Less, LessEqual, LessLess,
     Arrow, // ->
+    FatArrow, // =>
 
     // Literals
     Identifier, String, Integer, Float,
 
     // Keywords
-    Fn, Let, Return, Struct, Class,
+    Fn, Let, Return, Struct, Class, Match,
     If, Else, True, False,
-    For, While, And, Or, This,
+    For, While, And, Or, This, Import, Yield,
 
     // Special
+    Underscore, // _
     Eof,
     Error
 };

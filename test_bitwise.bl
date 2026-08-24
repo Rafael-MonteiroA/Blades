@@ -1,0 +1,11 @@
+// Bitwise operators test
+
+let a = 6;  // 110
+let b = 3;  // 011
+
+print(a & b); // 2 (010)
+print(a | b); // 7 (111)
+print(a ^ b); // 5 (101)
+print(~a);    // -7 
+print(a << 1); // 12
+print(a >> 1); // 3

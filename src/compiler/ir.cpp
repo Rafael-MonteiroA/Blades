@@ -70,6 +70,12 @@ std::string disassemble_instruction(const IRChunk& chunk, u32 offset)
         case OpCode::Multiply:     return oss.str() + simple_instruction("OP_MULTIPLY");
         case OpCode::Divide:       return oss.str() + simple_instruction("OP_DIVIDE");
         case OpCode::Negate:       return oss.str() + simple_instruction("OP_NEGATE");
+        case OpCode::BitAnd:       return oss.str() + simple_instruction("OP_BIT_AND");
+        case OpCode::BitOr:        return oss.str() + simple_instruction("OP_BIT_OR");
+        case OpCode::BitXor:       return oss.str() + simple_instruction("OP_BIT_XOR");
+        case OpCode::BitNot:       return oss.str() + simple_instruction("OP_BIT_NOT");
+        case OpCode::ShiftLeft:    return oss.str() + simple_instruction("OP_SHIFT_LEFT");
+        case OpCode::ShiftRight:   return oss.str() + simple_instruction("OP_SHIFT_RIGHT");
         case OpCode::Not:          return oss.str() + simple_instruction("OP_NOT");
         case OpCode::Equal:        return oss.str() + simple_instruction("OP_EQUAL");
         case OpCode::NotEqual:     return oss.str() + simple_instruction("OP_NOT_EQUAL");
@@ -85,6 +91,7 @@ std::string disassemble_instruction(const IRChunk& chunk, u32 offset)
         case OpCode::GetLocal:     return oss.str() + byte_instruction("OP_GET_LOCAL", inst.operand);
         case OpCode::SetLocal:     return oss.str() + byte_instruction("OP_SET_LOCAL", inst.operand);
         case OpCode::Pop:          return oss.str() + simple_instruction("OP_POP");
+        case OpCode::Yield:        return oss.str() + simple_instruction("OP_YIELD");
         
         case OpCode::BuildList:    return oss.str() + byte_instruction("OP_BUILD_LIST", inst.operand);
         case OpCode::BuildDict:    return oss.str() + byte_instruction("OP_BUILD_DICT", inst.operand);
@@ -98,6 +105,10 @@ std::string disassemble_instruction(const IRChunk& chunk, u32 offset)
         case OpCode::Loop:         return oss.str() + jump_instruction("OP_LOOP", -1, chunk, offset, inst.operand);
         
         case OpCode::Call:         return oss.str() + byte_instruction("OP_CALL", inst.operand);
+        case OpCode::Closure:      return oss.str() + constant_instruction("OP_CLOSURE", chunk, inst.operand);
+        case OpCode::GetUpvalue:   return oss.str() + byte_instruction("OP_GET_UPVALUE", inst.operand);
+        case OpCode::SetUpvalue:   return oss.str() + byte_instruction("OP_SET_UPVALUE", inst.operand);
+        case OpCode::CloseUpvalue: return oss.str() + simple_instruction("OP_CLOSE_UPVALUE");
         case OpCode::Return:       return oss.str() + simple_instruction("OP_RETURN");
         
         default:                   return oss.str() + "Unknown opcode";

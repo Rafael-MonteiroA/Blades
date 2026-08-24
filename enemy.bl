@@ -1,0 +1,31 @@
+class Enemy {
+    fn init(entity_id) {
+        this.id = entity_id;
+        this.state = "chase";
+        this.target = vec3(400.0, 300.0, 0.0); // Center of screen
+    }
+    
+    fn on_update(dt) {
+        let pos = ecs_get_position(this.id);
+        
+        let dist = (this.target - pos).length;
+        
+        if (dist < 10.0) {
+            this.state = "idle";
+        } else {
+            this.state = "chase";
+        }
+        
+        let move_speed = match (this.state) {
+            "idle" => 0.0,
+            "chase" => 150.0,
+            _ => 0.0
+        };
+        
+        if (move_speed > 0.0) {
+            let dir = (this.target - pos).normalized;
+            let new_pos = pos + (dir * (move_speed * dt));
+            ecs_set_position(this.id, new_pos.x, new_pos.y, new_pos.z);
+        }
+    }
+}

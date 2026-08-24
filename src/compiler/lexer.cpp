@@ -1,6 +1,7 @@
 #include "compiler/lexer.hpp"
 
 #include <cctype>
+#include <iostream>
 
 namespace blades
 {
@@ -128,13 +129,20 @@ Token Lexer::next_token()
         case '/': return make_token(TokenType::Slash);
         case '*': return make_token(TokenType::Star);
         case ':': return make_token(TokenType::Colon);
+        case '&': return make_token(TokenType::Ampersand);
+        case '|': return make_token(TokenType::Pipe);
+        case '^': return make_token(TokenType::Caret);
+        case '~': return make_token(TokenType::Tilde);
         case '!':
             return make_token(match('=') ? TokenType::BangEqual : TokenType::Bang);
         case '=':
+            if (match('>')) return make_token(TokenType::FatArrow);
             return make_token(match('=') ? TokenType::EqualEqual : TokenType::Equal);
         case '<':
+            if (match('<')) return make_token(TokenType::LessLess);
             return make_token(match('=') ? TokenType::LessEqual : TokenType::Less);
         case '>':
+            if (match('>')) return make_token(TokenType::GreaterGreater);
             return make_token(match('=') ? TokenType::GreaterEqual : TokenType::Greater);
         case '"': return string();
     }
@@ -199,6 +207,7 @@ TokenType Lexer::identifier_type() const
 {
     // A simple trie or switch for keywords.
     char c = m_source[m_start_offset];
+    
     switch (c)
     {
         case 'a': return check_keyword(1, 2, "nd", TokenType::And);
@@ -213,8 +222,16 @@ TokenType Lexer::identifier_type() const
                 }
             }
             break;
-        case 'i': return check_keyword(1, 1, "f", TokenType::If);
+        case 'i':
+            if (m_current_offset - m_start_offset > 1) {
+                switch (m_source[m_start_offset + 1]) {
+                    case 'f': return check_keyword(2, 0, "", TokenType::If);
+                    case 'm': return check_keyword(2, 4, "port", TokenType::Import);
+                }
+            }
+            break;
         case 'l': return check_keyword(1, 2, "et", TokenType::Let);
+        case 'm': return check_keyword(1, 4, "atch", TokenType::Match);
         case 'o': return check_keyword(1, 1, "r", TokenType::Or);
         case 'r': return check_keyword(1, 5, "eturn", TokenType::Return);
         case 's': return check_keyword(1, 5, "truct", TokenType::Struct);
@@ -227,6 +244,10 @@ TokenType Lexer::identifier_type() const
             }
             break;
         case 'w': return check_keyword(1, 4, "hile", TokenType::While);
+        case 'y': return check_keyword(1, 4, "ield", TokenType::Yield);
+        case '_':
+            if (m_current_offset - m_start_offset == 1) return TokenType::Underscore;
+            break;
     }
     return TokenType::Identifier;
 }

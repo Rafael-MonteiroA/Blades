@@ -10,6 +10,9 @@
 #include <iostream>
 #include <span>
 #include <string_view>
+#include <unordered_set>
+#include <vector>
+#include <memory>
 
 #include "version.hpp"
 
@@ -19,7 +22,6 @@
 #include "compiler/ir_generator.hpp"
 #include "backend/vm.hpp"
 #include "runtime/stdlib.hpp"
-#include "runtime/graphics.hpp"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Forward declarations (will be implemented in later phases)
@@ -31,9 +33,6 @@ namespace blades
 /// Placeholder: starts the interactive REPL (Fase 7).
 static void run_repl();
 
-/// Placeholder: runs a .bl source file through the full pipeline (Fase 5+).
-static void run_file(std::string_view path);
-
 /// Prints usage information to stdout.
 static void print_usage(std::string_view program_name);
 
@@ -41,7 +40,7 @@ static void print_usage(std::string_view program_name);
 static void print_version();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// run_repl / run_file — stubs for future phases
+// run_repl — stubs for future phases
 // ─────────────────────────────────────────────────────────────────────────────
 
 // We need a persistent state for the REPL
@@ -49,6 +48,8 @@ struct ExecutionState
 {
     SymbolTable globals;
     VM vm;
+    std::unordered_set<std::string> imported_files;
+    std::vector<std::unique_ptr<std::string>> loaded_sources;
     
     ExecutionState()
     {
@@ -60,52 +61,59 @@ struct ExecutionState
         globals.declare("input", ValueType::Any);
         globals.declare("len", ValueType::Any);
         
-        // Graphics
-        globals.declare("window_init", ValueType::Any);
-        globals.declare("window_should_close", ValueType::Any);
-        globals.declare("window_close", ValueType::Any);
-        
-        globals.declare("is_key_down", ValueType::Any);
-        globals.declare("is_key_pressed", ValueType::Any);
-        globals.declare("get_frame_time", ValueType::Any);
-        
-        globals.declare("disable_cursor", ValueType::Any);
-        globals.declare("enable_cursor", ValueType::Any);
-        globals.declare("is_mouse_button_pressed", ValueType::Any);
-        globals.declare("distance_3d", ValueType::Any);
-        
-        globals.declare("init_audio", ValueType::Any);
-        globals.declare("play_sound", ValueType::Any);
-        
-        globals.declare("begin_drawing", ValueType::Any);
-        globals.declare("end_drawing", ValueType::Any);
-        globals.declare("clear_background", ValueType::Any);
-        globals.declare("draw_text", ValueType::Any);
-        globals.declare("draw_circle", ValueType::Any);
-        globals.declare("draw_rectangle", ValueType::Any);
-        
-        globals.declare("begin_mode_3d", ValueType::Any);
-        globals.declare("end_mode_3d", ValueType::Any);
-        
-        globals.declare("update_camera_first_person", ValueType::Any);
-        globals.declare("get_camera_x", ValueType::Any);
-        globals.declare("get_camera_y", ValueType::Any);
-        globals.declare("get_camera_z", ValueType::Any);
-        globals.declare("set_camera_position", ValueType::Any);
-        globals.declare("init_camera", ValueType::Any);
-        
-        globals.declare("draw_sphere", ValueType::Any);
-        globals.declare("draw_cube", ValueType::Any);
-        globals.declare("draw_cube_texture", ValueType::Any);
-        globals.declare("draw_billboard", ValueType::Any);
-        globals.declare("load_texture", ValueType::Any);
-        globals.declare("draw_line_3d", ValueType::Any);
-        
         // Inject modules in VM
         register_stdlib(vm);
-        register_graphics_functions(vm);
     }
 };
+
+static std::vector<std::unique_ptr<Stmt>> link_ast(std::vector<std::unique_ptr<Stmt>> stmts, ExecutionState& state)
+{
+    std::vector<std::unique_ptr<Stmt>> linked;
+    for (auto& stmt : stmts)
+    {
+        if (auto* import_stmt = dynamic_cast<ImportStmt*>(stmt.get()))
+        {
+            std::string path(import_stmt->path.lexeme);
+            if (path.length() >= 2 && path.front() == '"' && path.back() == '"')
+                path = path.substr(1, path.length() - 2);
+
+            if (state.imported_files.find(path) == state.imported_files.end())
+            {
+                state.imported_files.insert(path);
+                
+                std::ifstream file(path);
+                if (!file.is_open())
+                {
+                    std::cerr << "Linker Error: Could not open module '" << path << "'\n";
+                    throw ParseError("Module not found");
+                }
+                
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                
+                auto source_str = std::make_unique<std::string>(buffer.str());
+                std::string_view source_view = *source_str;
+                state.loaded_sources.push_back(std::move(source_str));
+                
+                Lexer lexer(source_view, path);
+                Parser parser(lexer);
+                auto module_stmts = parser.parse();
+                
+                auto linked_module = link_ast(std::move(module_stmts), state);
+                
+                for (auto& ms : linked_module)
+                {
+                    linked.push_back(std::move(ms));
+                }
+            }
+        }
+        else
+        {
+            linked.push_back(std::move(stmt));
+        }
+    }
+    return linked;
+}
 
 static InterpretResult execute_source(std::string_view source, const char* name, ExecutionState& state)
 {
@@ -116,6 +124,7 @@ static InterpretResult execute_source(std::string_view source, const char* name,
     try
     {
         stmts = parser.parse();
+        stmts = link_ast(std::move(stmts), state);
     }
     catch (const ParseError& e)
     {
@@ -137,7 +146,13 @@ static InterpretResult execute_source(std::string_view source, const char* name,
     IRGenerator generator;
     auto function = generator.generate(stmts);
     
-    return state.vm.interpret(function);
+    InterpretResult result = state.vm.interpret(function);
+    while (result == InterpretResult::Yield)
+    {
+        result = state.vm.resume(state.vm.get_current_fiber());
+    }
+    
+    return result;
 }
 
 static void run_repl()
@@ -166,25 +181,6 @@ static void run_repl()
         
         execute_source(line, "repl", state);
     }
-}
-
-static void run_file(std::string_view path)
-{
-    std::ifstream file(std::string{path});
-    if (!file.is_open())
-    {
-        std::cerr << "Could not open file: " << path << "\n";
-        exit(74); // EX_IOERR
-    }
-    
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    
-    ExecutionState state;
-    InterpretResult result = execute_source(buffer.str(), path.data(), state);
-    
-    if (result == InterpretResult::CompileError) exit(65); // EX_DATAERR
-    if (result == InterpretResult::RuntimeError) exit(70); // EX_SOFTWARE
 }
 
 static void print_version()
@@ -242,9 +238,23 @@ int main(int argc, char* argv[])
             return 0;
         }
 
-        // Treat as source file
-        run_file(arg);
-        return 0;
+        // Initialize engine and run script as Entity component
+        std::ifstream file(std::string{arg});
+        if (!file.is_open())
+        {
+            std::cerr << "Could not open file: " << arg << "\n";
+            return 74; // EX_IOERR
+        }
+        
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+
+        blades::ExecutionState state;
+
+        // Evaluate the script (no engine ECS)
+        InterpretResult result = execute_source(buffer.str(), arg.data(), state);
+        
+        return result == InterpretResult::Ok ? 0 : 1;
     }
 
     // Unknown usage

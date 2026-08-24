@@ -134,6 +134,20 @@ std::any AstPrinter::visit(const PropertyAssignExpr& expr)
     return oss.str();
 }
 
+std::any AstPrinter::visit(const YieldExpr& expr)
+{
+    if (expr.value)
+    {
+        return std::string("(yield ") + std::any_cast<std::string>(expr.value->accept(*this)) + ")";
+    }
+    return std::string("(yield)");
+}
+
+std::any AstPrinter::visit(const MatchExpr& /*expr*/)
+{
+    return std::string("(match)");
+}
+
 std::any AstPrinter::visit(const ExprStmt& stmt)
 {
     std::ostringstream oss;
@@ -220,6 +234,19 @@ std::any AstPrinter::visit(const FunctionDecl& decl)
     return oss.str();
 }
 
+std::any AstPrinter::visit(const FnExpr& expr)
+{
+    std::ostringstream oss;
+    oss << "(fn (";
+    for (size_t i = 0; i < expr.params.size(); ++i)
+    {
+        if (i > 0) oss << " ";
+        oss << expr.params[i].lexeme;
+    }
+    oss << ") " << std::any_cast<std::string>(expr.body->accept(*this)) << ")";
+    return oss.str();
+}
+
 std::any AstPrinter::visit(const ClassDecl& decl)
 {
     std::string result = "(class " + std::string(decl.name.lexeme);
@@ -228,6 +255,11 @@ std::any AstPrinter::visit(const ClassDecl& decl)
         result += " " + std::any_cast<std::string>(method->accept(*this));
     }
     return result + ")";
+}
+
+std::any AstPrinter::visit(const ImportStmt& stmt)
+{
+    return "(import " + std::string(stmt.path.lexeme) + ")";
 }
 
 } // namespace blades

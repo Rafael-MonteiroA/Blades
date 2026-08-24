@@ -19,12 +19,14 @@ struct Local
 {
     std::string name;
     int depth;
+    bool is_captured = false;
 };
 
 struct CompilerState
 {
     std::shared_ptr<ObjFunction> function;
     std::vector<Local> locals;
+    std::vector<CapturedUpvalue> upvalues;
     int scope_depth = 0;
 };
 
@@ -48,6 +50,9 @@ public:
     std::any visit(const PropertyExpr& expr) override;
     std::any visit(const PropertyAssignExpr& expr) override;
     std::any visit(const ThisExpr& expr) override;
+    std::any visit(const FnExpr& expr) override;
+    std::any visit(const YieldExpr& expr) override;
+    std::any visit(const MatchExpr& expr) override;
 
     // Statements
     std::any visit(const ExprStmt& stmt) override;
@@ -59,6 +64,7 @@ public:
     std::any visit(const ReturnStmt& stmt) override;
     std::any visit(const FunctionDecl& decl) override;
     std::any visit(const ClassDecl& decl) override;
+    std::any visit(const ImportStmt& stmt) override;
 
 private:
     std::vector<std::unique_ptr<CompilerState>> m_compiler_stack;
@@ -111,6 +117,51 @@ private:
                 return i;
             }
         }
+        return -1;
+    }
+    
+    int resolve_local(CompilerState* comp, const std::string& name)
+    {
+        for (int i = static_cast<int>(comp->locals.size()) - 1; i >= 0; --i)
+        {
+            if (comp->locals[i].name == name)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    int add_upvalue(CompilerState* comp, u32 index, bool is_local)
+    {
+        for (size_t i = 0; i < comp->upvalues.size(); i++)
+        {
+            if (comp->upvalues[i].index == index && comp->upvalues[i].is_local == is_local)
+                return static_cast<int>(i);
+        }
+        comp->upvalues.push_back({index, is_local});
+        return static_cast<int>(comp->upvalues.size() - 1);
+    }
+
+    int resolve_upvalue(int compiler_index, const std::string& name)
+    {
+        if (compiler_index <= 0) return -1;
+
+        CompilerState* enclosing = m_compiler_stack[compiler_index - 1].get();
+        
+        int local = resolve_local(enclosing, name);
+        if (local != -1)
+        {
+            enclosing->locals[local].is_captured = true;
+            return add_upvalue(m_compiler_stack[compiler_index].get(), static_cast<u32>(local), true);
+        }
+
+        int upvalue = resolve_upvalue(compiler_index - 1, name);
+        if (upvalue != -1)
+        {
+            return add_upvalue(m_compiler_stack[compiler_index].get(), static_cast<u32>(upvalue), false);
+        }
+
         return -1;
     }
 };

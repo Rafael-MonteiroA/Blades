@@ -1,0 +1,24 @@
+let jogador = {
+    nome: "Herói",
+    vida: 100,
+    moedas: 50
+};
+
+print("Dados Iniciais:");
+print("Nome:", jogador.nome);
+print("Vida:", jogador.vida);
+print("Moedas:", jogador.moedas);
+
+print("---------------------------------");
+print("O jogador tomou dano!");
+jogador.vida = jogador.vida - 25;
+
+print("Nova Vida:", jogador.vida);
+print("Tipo do jogador:", type_of(jogador));
+print("Tamanho (chaves) do jogador:", len(jogador));
+
+print("---------------------------------");
+print("Testando sintaxe de colchetes:");
+print("Nome via []:", jogador["nome"]);
+jogador["moedas"] = 150;
+print("Moedas apos ganhar bau:", jogador["moedas"]);

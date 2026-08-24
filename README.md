@@ -24,23 +24,26 @@ O projeto foi construído inteiramente do zero, passando por todas as etapas fun
 ## Exemplo de Código
 
 ```js
-// Definindo funções recursivas
+// Orientação a Objetos
+class Pessoa {
+    fn init(n) { this.nome = n; }
+    fn falar() { print("Olá, eu sou ", this.nome); }
+}
+
+let p = Pessoa("Blades");
+p.falar();
+
+// Dicionários e Funções Recursivas
+let infos = { "versao": 1.0, "limites": [3, 5, 7] };
+
 fn fibonacci(n) {
     if (n <= 1) { return n; }
     return fibonacci(n - 1) + fibonacci(n - 2);
 }
 
-// Declarando arrays e usando laços for
-let limites = [3, 5, 7];
-print("Calculando Fibonacci para os limites:", limites);
-
-for (let i = 0; i < len(limites); i = i + 1) {
-    print("Fibonacci(", limites[i], ") = ", fibonacci(limites[i]));
+for (let i = 0; i < len(infos["limites"]); i = i + 1) {
+    print("Fibonacci(", infos["limites"][i], ") = ", fibonacci(infos["limites"][i]));
 }
-
-// Inspecionando tipos dinamicamente
-let tipo = type_of(limites);
-print("A variavel 'limites' eh do tipo: ", tipo);
 ```
 
 ## Arquitetura do Compilador
@@ -90,7 +93,6 @@ O projeto usa um framework de testes customizado para atestar todos os stages do
 ## Como Contribuir
 
 Se sinta à vontade para abrir pull requests! 
-Atualmente, as maiores necessidades do interpretador são:
-- Tipos de dados complexos: Dicionários (Hash Maps).
-- Orientação a Objetos (Classes, Métodos e Instâncias).
 - Pacotes de extensão (importação de módulos).
+- Switch/Match statements (Pattern Matching).
+- Funções anônimas (Lambdas / Closures).

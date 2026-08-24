@@ -128,6 +128,7 @@ std::unique_ptr<Stmt> Parser::declaration()
 {
     try
     {
+        if (match(TokenType::Import)) return import_statement();
         if (match(TokenType::Class)) return class_declaration();
         if (match(TokenType::Fn)) return fn_declaration("function");
         if (match(TokenType::Let)) return let_declaration();
@@ -211,6 +212,15 @@ std::unique_ptr<Stmt> Parser::let_declaration()
     
     consume(TokenType::Semicolon, "Expect ';' after variable declaration.");
     return std::make_unique<LetStmt>(std::move(name), std::move(initializer));
+}
+
+std::unique_ptr<Stmt> Parser::import_statement()
+{
+    Token keyword = m_previous;
+    consume(TokenType::String, "Expect module path string after 'import'.");
+    Token path = m_previous;
+    consume(TokenType::Semicolon, "Expect ';' after import path.");
+    return std::make_unique<ImportStmt>(std::move(keyword), std::move(path));
 }
 
 std::unique_ptr<Stmt> Parser::statement()
@@ -325,7 +335,58 @@ std::unique_ptr<Stmt> Parser::expression_statement()
 
 std::unique_ptr<Expr> Parser::expression()
 {
+    if (match(TokenType::Yield))
+    {
+        Token keyword = m_previous;
+        std::unique_ptr<Expr> value = nullptr;
+        // Se não for o fim da expressão, tentamos parsear o valor
+        if (!check(TokenType::Semicolon) && !check(TokenType::RightParen) && !check(TokenType::RightBrace) && !check(TokenType::Comma))
+        {
+            value = assignment();
+        }
+        return std::make_unique<YieldExpr>(std::move(keyword), std::move(value));
+    }
+    if (match(TokenType::Match))
+    {
+        return match_expression();
+    }
     return assignment();
+}
+
+std::unique_ptr<Expr> Parser::match_expression()
+{
+    Token keyword = m_previous;
+    consume(TokenType::LeftParen, "Expect '(' after 'match'.");
+    auto value = expression();
+    consume(TokenType::RightParen, "Expect ')' after match value.");
+    consume(TokenType::LeftBrace, "Expect '{' before match arms.");
+    
+    std::vector<MatchArm> arms;
+    while (!check(TokenType::RightBrace) && !check(TokenType::Eof))
+    {
+        std::unique_ptr<Expr> pattern = nullptr;
+        if (match(TokenType::Underscore))
+        {
+            // default fallback, pattern remains nullptr
+        }
+        else
+        {
+            pattern = expression();
+        }
+        
+        consume(TokenType::FatArrow, "Expect '=>' after match pattern.");
+        
+        auto body = expression();
+        arms.emplace_back(std::move(pattern), std::move(body));
+        
+        if (!match(TokenType::Comma))
+        {
+            break;
+        }
+    }
+    
+    consume(TokenType::RightBrace, "Expect '}' after match arms.");
+    return std::make_unique<MatchExpr>(std::move(keyword), std::move(value), std::move(arms));
 }
 
 std::unique_ptr<Expr> Parser::assignment()
@@ -379,8 +440,44 @@ std::unique_ptr<Expr> Parser::logical_or()
 
 std::unique_ptr<Expr> Parser::logical_and()
 {
-    auto expr = equality();
+    auto expr = bitwise_or();
     while (match(TokenType::And))
+    {
+        Token op = m_previous;
+        auto right = bitwise_or();
+        expr = std::make_unique<BinaryExpr>(std::move(expr), std::move(op), std::move(right));
+    }
+    return expr;
+}
+
+std::unique_ptr<Expr> Parser::bitwise_or()
+{
+    auto expr = bitwise_xor();
+    while (match(TokenType::Pipe))
+    {
+        Token op = m_previous;
+        auto right = bitwise_xor();
+        expr = std::make_unique<BinaryExpr>(std::move(expr), std::move(op), std::move(right));
+    }
+    return expr;
+}
+
+std::unique_ptr<Expr> Parser::bitwise_xor()
+{
+    auto expr = bitwise_and();
+    while (match(TokenType::Caret))
+    {
+        Token op = m_previous;
+        auto right = bitwise_and();
+        expr = std::make_unique<BinaryExpr>(std::move(expr), std::move(op), std::move(right));
+    }
+    return expr;
+}
+
+std::unique_ptr<Expr> Parser::bitwise_and()
+{
+    auto expr = equality();
+    while (match(TokenType::Ampersand))
     {
         Token op = m_previous;
         auto right = equality();
@@ -405,10 +502,24 @@ std::unique_ptr<Expr> Parser::equality()
 
 std::unique_ptr<Expr> Parser::comparison()
 {
-    auto expr = term();
+    auto expr = shift();
     
     while (match(TokenType::Greater) || match(TokenType::GreaterEqual) ||
            match(TokenType::Less) || match(TokenType::LessEqual))
+    {
+        Token op = m_previous;
+        auto right = shift();
+        expr = std::make_unique<BinaryExpr>(std::move(expr), std::move(op), std::move(right));
+    }
+    
+    return expr;
+}
+
+std::unique_ptr<Expr> Parser::shift()
+{
+    auto expr = term();
+    
+    while (match(TokenType::LessLess) || match(TokenType::GreaterGreater))
     {
         Token op = m_previous;
         auto right = term();
@@ -448,7 +559,7 @@ std::unique_ptr<Expr> Parser::factor()
 
 std::unique_ptr<Expr> Parser::unary()
 {
-    if (match(TokenType::Bang) || match(TokenType::Minus))
+    if (match(TokenType::Bang) || match(TokenType::Minus) || match(TokenType::Tilde))
     {
         Token op = m_previous;
         auto right = unary();
@@ -511,6 +622,33 @@ std::unique_ptr<Expr> Parser::primary()
     if (match(TokenType::This))
     {
         return std::make_unique<ThisExpr>(m_previous);
+    }
+    
+    if (match(TokenType::Fn))
+    {
+        consume(TokenType::LeftParen, "Expect '(' after 'fn'.");
+        std::vector<Token> parameters;
+        if (!check(TokenType::RightParen))
+        {
+            do
+            {
+                consume(TokenType::Identifier, "Expect parameter name.");
+                parameters.push_back(m_previous);
+                if (match(TokenType::Colon)) {
+                    consume(TokenType::Identifier, "Expect parameter type.");
+                }
+            } while (match(TokenType::Comma));
+        }
+        consume(TokenType::RightParen, "Expect ')' after parameters.");
+        
+        if (match(TokenType::Arrow)) {
+            consume(TokenType::Identifier, "Expect return type.");
+        }
+        
+        consume(TokenType::LeftBrace, "Expect '{' before lambda body.");
+        auto body = std::unique_ptr<BlockStmt>(static_cast<BlockStmt*>(block_statement().release()));
+        
+        return std::make_unique<FnExpr>(std::move(parameters), std::move(body));
     }
     
     if (match(TokenType::Identifier))

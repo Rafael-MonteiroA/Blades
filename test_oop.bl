@@ -1,0 +1,14 @@
+import "math.bl";
+
+class Pessoa {
+    fn init(n) { this.nome = n; }
+    fn falar() { print("Olá, eu sou ", this.nome); }
+}
+
+let p = Pessoa("Blades");
+p.falar();
+
+let d = { "idade": 25 };
+print("Idade: ", d["idade"]);
+
+print("Área do círculo de raio 5 é: ", calc_area(5));

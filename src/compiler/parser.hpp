@@ -50,6 +50,7 @@ private:
     std::unique_ptr<Stmt> class_declaration();
     std::unique_ptr<Stmt> fn_declaration(std::string kind);
     std::unique_ptr<Stmt> let_declaration();
+    std::unique_ptr<Stmt> import_statement();
     std::unique_ptr<Stmt> statement();
     std::unique_ptr<Stmt> if_statement();
     std::unique_ptr<Stmt> return_statement();
@@ -60,11 +61,16 @@ private:
 
     // Grammar - Expressions
     std::unique_ptr<Expr> expression();
+    std::unique_ptr<Expr> match_expression();
     std::unique_ptr<Expr> assignment();
     std::unique_ptr<Expr> logical_or();
     std::unique_ptr<Expr> logical_and();
+    std::unique_ptr<Expr> bitwise_or();
+    std::unique_ptr<Expr> bitwise_xor();
+    std::unique_ptr<Expr> bitwise_and();
     std::unique_ptr<Expr> equality();
     std::unique_ptr<Expr> comparison();
+    std::unique_ptr<Expr> shift();
     std::unique_ptr<Expr> term();
     std::unique_ptr<Expr> factor();
     std::unique_ptr<Expr> unary();

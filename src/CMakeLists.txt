@@ -12,7 +12,6 @@ add_library(blades_lib STATIC
     backend/value.cpp
     backend/vm.cpp
     runtime/stdlib.cpp
-    runtime/graphics.cpp
 )
 
 target_include_directories(blades_lib
@@ -23,7 +22,6 @@ target_include_directories(blades_lib
 
 target_link_libraries(blades_lib
     PUBLIC blades_warnings
-    PUBLIC raylib
 )
 
 # ── blades: main executable ───────────────────────────────────────────────────

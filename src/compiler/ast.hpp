@@ -30,6 +30,9 @@ class DictExpr;
 class PropertyExpr;
 class PropertyAssignExpr;
 class ThisExpr;
+class FnExpr;
+class YieldExpr;
+class MatchExpr;
 
 class Stmt;
 class ExprStmt;
@@ -41,6 +44,7 @@ class ForStmt;
 class ReturnStmt;
 class FunctionDecl;
 class ClassDecl;
+class ImportStmt;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AstVisitor
@@ -66,6 +70,9 @@ public:
     virtual std::any visit(const PropertyExpr& expr) = 0;
     virtual std::any visit(const PropertyAssignExpr& expr) = 0;
     virtual std::any visit(const ThisExpr& expr) = 0;
+    virtual std::any visit(const FnExpr& expr) = 0;
+    virtual std::any visit(const YieldExpr& expr) = 0;
+    virtual std::any visit(const MatchExpr& expr) = 0;
 
     // Statements
     virtual std::any visit(const ExprStmt& stmt) = 0;
@@ -77,6 +84,7 @@ public:
     virtual std::any visit(const ReturnStmt& stmt) = 0;
     virtual std::any visit(const FunctionDecl& decl) = 0;
     virtual std::any visit(const ClassDecl& decl) = 0;
+    virtual std::any visit(const ImportStmt& stmt) = 0;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -261,6 +269,58 @@ public:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FnExpr
+// ─────────────────────────────────────────────────────────────────────────────
+
+class FnExpr : public Expr
+{
+public:
+    std::vector<Token> params;
+    std::unique_ptr<BlockStmt> body;
+
+    FnExpr(std::vector<Token> params, std::unique_ptr<BlockStmt> body)
+        : params(std::move(params)), body(std::move(body)) {}
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// YieldExpr
+// ─────────────────────────────────────────────────────────────────────────────
+
+class YieldExpr : public Expr
+{
+public:
+    Token keyword;
+    std::unique_ptr<Expr> value;
+
+    YieldExpr(Token keyword, std::unique_ptr<Expr> value)
+        : keyword(std::move(keyword)), value(std::move(value)) {}
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
+struct MatchArm
+{
+    // If pattern is nullptr, it represents the default '_' fallback
+    std::unique_ptr<Expr> pattern;
+    std::unique_ptr<Expr> body;
+    
+    MatchArm(std::unique_ptr<Expr> pattern, std::unique_ptr<Expr> body)
+        : pattern(std::move(pattern)), body(std::move(body)) {}
+};
+
+class MatchExpr : public Expr
+{
+public:
+    Token keyword;
+    std::unique_ptr<Expr> value;
+    std::vector<MatchArm> arms;
+
+    MatchExpr(Token keyword, std::unique_ptr<Expr> value, std::vector<MatchArm> arms)
+        : keyword(std::move(keyword)), value(std::move(value)), arms(std::move(arms)) {}
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Statements
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -370,6 +430,17 @@ public:
     std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
 };
 
+class ImportStmt : public Stmt
+{
+public:
+    Token keyword;
+    Token path;
+
+    ImportStmt(Token keyword, Token path)
+        : keyword(std::move(keyword)), path(std::move(path)) {}
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // AstPrinter — Helper to stringify the AST (mostly for tests)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -393,6 +464,9 @@ public:
     std::any visit(const PropertyExpr& expr) override;
     std::any visit(const PropertyAssignExpr& expr) override;
     std::any visit(const ThisExpr& expr) override;
+    std::any visit(const FnExpr& expr) override;
+    std::any visit(const YieldExpr& expr) override;
+    std::any visit(const MatchExpr& expr) override;
 
     std::any visit(const ExprStmt& stmt) override;
     std::any visit(const LetStmt& stmt) override;
@@ -403,6 +477,7 @@ public:
     std::any visit(const ReturnStmt& stmt) override;
     std::any visit(const FunctionDecl& decl) override;
     std::any visit(const ClassDecl& decl) override;
+    std::any visit(const ImportStmt& stmt) override;
 };
 
 } // namespace blades

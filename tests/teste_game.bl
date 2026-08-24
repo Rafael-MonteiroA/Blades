@@ -1,0 +1,30 @@
+window_init(800, 600, "Blades 3D Engine");
+
+print("Pressione ESC para sair...");
+
+while (!window_should_close()) {
+    begin_drawing();
+    clear_background(30, 30, 30);
+
+    // 3D Mode
+    begin_mode_3d(10, 10, 10, 0, 0, 0);
+    
+    // Cubo central
+    draw_cube(0, 0, 0, 2, 2, 2, 255, 0, 0);
+    
+    // Eixos X, Y, Z
+    draw_line_3d(0, 0, 0, 5, 0, 0, 255, 0, 0); // X - Red
+    draw_line_3d(0, 0, 0, 0, 5, 0, 0, 255, 0); // Y - Green
+    draw_line_3d(0, 0, 0, 0, 0, 5, 0, 0, 255); // Z - Blue
+    
+    end_mode_3d();
+
+    // 2D Mode
+    draw_circle(100, 100, 50, 0, 121, 241);
+    draw_rectangle(100, 200, 150, 50, 241, 196, 15);
+
+    end_drawing();
+}
+
+window_close();
+print("Janela fechada. Saindo...");

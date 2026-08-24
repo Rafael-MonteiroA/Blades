@@ -19,6 +19,11 @@ std::string to_string(const Value& value)
     if (value.is_string()) return value.as_string();
     if (value.is_native_fn()) return "<native fn>";
     if (value.is_function()) return "<fn " + value.as_function()->name + ">";
+    if (value.is_closure()) {
+        std::string name = value.as_closure()->function->name;
+        if (name.empty()) return "<lambda>";
+        return "<fn " + name + ">";
+    }
     
     if (value.is_array())
     {
@@ -56,7 +61,25 @@ std::string to_string(const Value& value)
     
     if (value.is_class()) return "<class " + value.as_class()->name + ">";
     if (value.is_instance()) return "<instance " + value.as_instance()->klass->name + ">";
-    if (value.is_bound_method()) return "<bound method " + value.as_bound_method()->method->name + ">";
+    if (value.is_bound_method()) return "<bound method " + value.as_bound_method()->method->function->name + ">";
+    if (value.is_user_data()) return "<userdata>";
+    if (value.is_fiber()) return "<fiber>";
+
+    if (value.is_vec2()) {
+        auto v = value.as_vec2();
+        std::ostringstream oss; oss << "<Vec2(" << v.x << ", " << v.y << ")>";
+        return oss.str();
+    }
+    if (value.is_vec3()) {
+        auto v = value.as_vec3();
+        std::ostringstream oss; oss << "<Vec3(" << v.x << ", " << v.y << ", " << v.z << ")>";
+        return oss.str();
+    }
+    if (value.is_color()) {
+        auto c = value.as_color();
+        std::ostringstream oss; oss << "<Color(" << (int)c.r << ", " << (int)c.g << ", " << (int)c.b << ", " << (int)c.a << ")>";
+        return oss.str();
+    }
 
     return "<unknown value>";
 }

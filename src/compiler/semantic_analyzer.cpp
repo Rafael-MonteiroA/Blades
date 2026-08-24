@@ -162,6 +162,7 @@ std::any SemanticAnalyzer::visit(const VariableExpr& expr)
     auto type = m_symbols.lookup(expr.name.lexeme);
     if (!type.has_value())
     {
+        std::cerr << "DEBUG: Lookup failed for variable '" << expr.name.lexeme << "'\n";
         error(expr.name, "Undefined variable.");
         return ValueType::Unknown;
     }
@@ -179,7 +180,7 @@ std::any SemanticAnalyzer::visit(const AssignExpr& expr)
         return value_type;
     }
     
-    if (var_type.value() != value_type && value_type != ValueType::Unknown)
+    if (var_type.value() != value_type && var_type.value() != ValueType::Unknown && value_type != ValueType::Unknown)
     {
         error(expr.name, "Cannot assign value of type " + std::string(to_string(value_type)) + 
                          " to variable of type " + std::string(to_string(var_type.value())) + ".");
@@ -373,14 +374,88 @@ std::any SemanticAnalyzer::visit(const ClassDecl& decl)
 {
     m_symbols.declare(decl.name.lexeme, ValueType::Unknown);
     
-    // We don't strictly need a new scope for the class body unless we want to resolve 'this' properly,
-    // but we need to visit the methods so their bodies are analyzed.
+    m_symbols.begin_scope();
+    m_symbols.declare("this", ValueType::Unknown);
+    
     for (const auto& method : decl.methods)
     {
-        // Visit the method (FunctionDecl)
-        method->accept(*this);
+        m_symbols.begin_scope();
+        for (const auto& param : method->params)
+        {
+            m_symbols.declare(param.lexeme, ValueType::Unknown);
+        }
+        
+        execute(*method->body);
+        m_symbols.end_scope();
     }
     
+    m_symbols.end_scope();
+    
+    return std::any();
+}
+
+std::any SemanticAnalyzer::visit(const FnExpr& expr)
+{
+    m_symbols.begin_scope();
+    for (const auto& param : expr.params)
+    {
+        m_symbols.declare(param.lexeme, ValueType::Unknown);
+    }
+    
+    execute(*expr.body);
+    m_symbols.end_scope();
+    
+    return ValueType::Unknown;
+}
+
+std::any SemanticAnalyzer::visit(const YieldExpr& expr)
+{
+    if (expr.value)
+    {
+        evaluate(*expr.value);
+    }
+    return ValueType::Unknown;
+}
+
+std::any SemanticAnalyzer::visit(const MatchExpr& expr)
+{
+    evaluate(*expr.value);
+    ValueType return_type = ValueType::Unknown;
+    
+    bool has_default = false;
+    for (const auto& arm : expr.arms)
+    {
+        if (arm.pattern)
+        {
+            evaluate(*arm.pattern);
+        }
+        else
+        {
+            has_default = true;
+        }
+        
+        ValueType arm_type = evaluate(*arm.body);
+        if (return_type == ValueType::Unknown)
+        {
+            return_type = arm_type;
+        }
+        else if (arm_type != ValueType::Unknown && arm_type != return_type)
+        {
+            error(expr.keyword, "Match arms have incompatible return types.");
+        }
+    }
+    
+    if (!has_default)
+    {
+        error(expr.keyword, "Match expression must have a default '_' fallback arm.");
+    }
+    
+    return return_type;
+}
+
+std::any SemanticAnalyzer::visit(const ImportStmt& stmt)
+{
+    (void)stmt;
     return std::any();
 }
 
