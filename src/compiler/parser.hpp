@@ -76,6 +76,7 @@ private:
     std::unique_ptr<Expr> unary();
     std::unique_ptr<Expr> call();
     std::unique_ptr<Expr> primary();
+    std::unique_ptr<Expr> parse_fstring(Token token);
 };
 
 } // namespace blades

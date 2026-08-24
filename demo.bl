@@ -1,0 +1,47 @@
+// ==========================================
+// Blades Language - Demo Final
+// ==========================================
+
+print("=== 1. Variaveis e Tipos ===");
+let numero = 42;
+let booleano = true;
+print(numero);
+print(booleano);
+print("");
+
+print("=== 2. Operacoes ===");
+print("10 + 5 * 2 =");
+print(10 + 5 * 2);
+print("5 << 1 (Bitwise) =");
+print(5 << 1);
+print("");
+
+print("=== 3. Funcoes e Escopo ===");
+fn somar(a, b) {
+    return a + b;
+}
+print("somar(10, 5):");
+print(somar(10, 5));
+print("");
+
+print("=== 4. Orientacao a Objetos ===");
+class Animal {
+    fn init(nome, som) {
+        this.nome = nome;
+        this.som = som;
+    }
+
+    fn falar() {
+        print(this.nome);
+        print(this.som);
+    }
+}
+
+let cachorro = Animal("Rex", "Au Au");
+cachorro.falar();
+print("");
+
+print("=== 5. Funcoes Embutidas ===");
+print("Tempo (clock):");
+print(clock());
+print("Tudo funcionando perfeitamente!");

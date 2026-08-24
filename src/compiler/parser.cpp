@@ -85,10 +85,10 @@ void Parser::synchronize()
     while (m_current.type != TokenType::Eof)
     {
         if (m_previous.type == TokenType::Semicolon) return;
-        
+
         switch (m_current.type)
         {
-            case TokenType::Struct:
+            case TokenType::Class:
             case TokenType::Fn:
             case TokenType::Let:
             case TokenType::For:
@@ -99,8 +99,77 @@ void Parser::synchronize()
             default:
                 break;
         }
+
         advance();
     }
+}
+
+std::unique_ptr<Expr> Parser::parse_fstring(Token token)
+{
+    std::string_view lexeme = token.lexeme;
+    // skip f" and "
+    std::string_view content = lexeme.substr(2, lexeme.size() - 3);
+    
+    std::unique_ptr<Expr> root = nullptr;
+    
+    size_t i = 0;
+    while (i < content.size())
+    {
+        size_t start = i;
+        while (i < content.size() && content[i] != '{') i++;
+        
+        std::string_view str_part = content.substr(start, i - start);
+        
+        if (!str_part.empty() || root == nullptr) {
+            Token str_tok{TokenType::String, str_part, token.span};
+            auto str_expr = std::make_unique<LiteralExpr>(str_tok);
+            
+            if (!root) {
+                root = std::move(str_expr);
+            } else {
+                Token plus{TokenType::Plus, "+", token.span};
+                root = std::make_unique<BinaryExpr>(std::move(root), plus, std::move(str_expr));
+            }
+        }
+        
+        if (i < content.size() && content[i] == '{')
+        {
+            i++; // skip {
+            size_t expr_start = i;
+            int depth = 1;
+            while (i < content.size() && depth > 0)
+            {
+                if (content[i] == '{') depth++;
+                else if (content[i] == '}') depth--;
+                i++;
+            }
+            if (depth > 0) {
+                error_at_current("Unterminated '{' in f-string.");
+                break;
+            }
+            
+            std::string_view expr_str = content.substr(expr_start, i - expr_start - 1);
+            Lexer sub_lexer(expr_str, "fstring");
+            Parser sub_parser(sub_lexer);
+            auto inner_expr = sub_parser.expression();
+            
+            if (inner_expr) {
+                if (!root) {
+                    root = std::move(inner_expr);
+                } else {
+                    Token plus{TokenType::Plus, "+", token.span};
+                    root = std::make_unique<BinaryExpr>(std::move(root), plus, std::move(inner_expr));
+                }
+            }
+        }
+    }
+    
+    if (!root) {
+        Token empty_str{TokenType::String, lexeme.substr(2,0), token.span};
+        return std::make_unique<LiteralExpr>(empty_str);
+    }
+    
+    return root;
 }
 
 std::vector<std::unique_ptr<Stmt>> Parser::parse()
@@ -181,6 +250,13 @@ std::unique_ptr<Stmt> Parser::class_declaration()
     consume(TokenType::Identifier, "Expect class name.");
     Token name = m_previous;
     
+    std::unique_ptr<VariableExpr> superclass = nullptr;
+    if (match(TokenType::Less))
+    {
+        consume(TokenType::Identifier, "Expect superclass name.");
+        superclass = std::make_unique<VariableExpr>(m_previous);
+    }
+    
     consume(TokenType::LeftBrace, "Expect '{' before class body.");
     
     std::vector<std::unique_ptr<FunctionDecl>> methods;
@@ -188,7 +264,6 @@ std::unique_ptr<Stmt> Parser::class_declaration()
     {
         if (match(TokenType::Fn)) {
             auto method = fn_declaration("method");
-            // Cast safe because fn_declaration always returns FunctionDecl
             methods.push_back(std::unique_ptr<FunctionDecl>(static_cast<FunctionDecl*>(method.release())));
         } else {
             error_at_current("Expect 'fn' for method declaration.");
@@ -196,7 +271,7 @@ std::unique_ptr<Stmt> Parser::class_declaration()
     }
     
     consume(TokenType::RightBrace, "Expect '}' after class body.");
-    return std::make_unique<ClassDecl>(std::move(name), std::move(methods));
+    return std::make_unique<ClassDecl>(std::move(name), std::move(superclass), std::move(methods));
 }
 
 std::unique_ptr<Stmt> Parser::let_declaration()
@@ -634,21 +709,28 @@ std::unique_ptr<Expr> Parser::primary()
             {
                 consume(TokenType::Identifier, "Expect parameter name.");
                 parameters.push_back(m_previous);
-                if (match(TokenType::Colon)) {
-                    consume(TokenType::Identifier, "Expect parameter type.");
-                }
             } while (match(TokenType::Comma));
         }
         consume(TokenType::RightParen, "Expect ')' after parameters.");
         
-        if (match(TokenType::Arrow)) {
-            consume(TokenType::Identifier, "Expect return type.");
-        }
-        
-        consume(TokenType::LeftBrace, "Expect '{' before lambda body.");
+        consume(TokenType::LeftBrace, "Expect '{' before function body.");
         auto body = std::unique_ptr<BlockStmt>(static_cast<BlockStmt*>(block_statement().release()));
         
         return std::make_unique<FnExpr>(std::move(parameters), std::move(body));
+    }
+    
+    if (match(TokenType::Super))
+    {
+        Token keyword = m_previous;
+        consume(TokenType::Dot, "Expect '.' after 'super'.");
+        consume(TokenType::Identifier, "Expect superclass method name.");
+        Token method = m_previous;
+        return std::make_unique<SuperExpr>(std::move(keyword), std::move(method));
+    }
+
+    if (match(TokenType::FString))
+    {
+        return parse_fstring(m_previous);
     }
     
     if (match(TokenType::Identifier))

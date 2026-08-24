@@ -108,6 +108,12 @@ Token Lexer::next_token()
 
     char c = advance();
 
+    if (c == 'f' && peek() == '"')
+    {
+        advance();
+        return fstring();
+    }
+
     if (std::isalpha(c) || c == '_') return identifier();
     if (std::isdigit(c)) return number();
 
@@ -167,6 +173,25 @@ Token Lexer::string()
     // The closing quote.
     advance();
     return make_token(TokenType::String);
+}
+
+Token Lexer::fstring()
+{
+    while (peek() != '"' && !is_at_end())
+    {
+        if (peek() == '\n') 
+        {
+            m_line++;
+            m_column = 0;
+        }
+        advance();
+    }
+
+    if (is_at_end()) return error_token("Unterminated f-string.");
+
+    // The closing quote.
+    advance();
+    return make_token(TokenType::FString);
 }
 
 Token Lexer::number()
@@ -234,7 +259,14 @@ TokenType Lexer::identifier_type() const
         case 'm': return check_keyword(1, 4, "atch", TokenType::Match);
         case 'o': return check_keyword(1, 1, "r", TokenType::Or);
         case 'r': return check_keyword(1, 5, "eturn", TokenType::Return);
-        case 's': return check_keyword(1, 5, "truct", TokenType::Struct);
+        case 's':
+            if (m_current_offset - m_start_offset > 1) {
+                switch (m_source[m_start_offset + 1]) {
+                    case 't': return check_keyword(2, 4, "ruct", TokenType::Struct);
+                    case 'u': return check_keyword(2, 3, "per", TokenType::Super);
+                }
+            }
+            break;
         case 't':
             if (m_current_offset - m_start_offset > 1) {
                 switch (m_source[m_start_offset + 1]) {

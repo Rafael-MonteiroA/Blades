@@ -58,8 +58,10 @@ const char* to_string(TokenType type)
         case TokenType::And:          return "And";
         case TokenType::Or:           return "Or";
         case TokenType::This:         return "This";
+        case TokenType::Super:        return "Super";
         case TokenType::Import:       return "Import";
         case TokenType::Yield:        return "Yield";
+        case TokenType::FString:      return "FString";
         case TokenType::Underscore:   return "Underscore";
         case TokenType::Eof:          return "Eof";
         case TokenType::Error:        return "Error";

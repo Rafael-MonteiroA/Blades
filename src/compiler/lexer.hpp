@@ -45,6 +45,7 @@ private:
 
     // Parsers
     Token string();
+    Token fstring();
     Token number();
     Token identifier();
     

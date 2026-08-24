@@ -445,9 +445,19 @@ std::any IRGenerator::visit(const ClassDecl& decl)
 {
     u32 name_idx = make_constant(Value(std::string(decl.name.lexeme)));
     
-    // Instantiate the class definition at runtime
     emit(OpCode::Class, name_idx, decl.name.span.start.line);
     emit(OpCode::DefineGlobal, name_idx, decl.name.span.start.line);
+
+    if (decl.superclass) {
+        decl.superclass->accept(*this);
+        
+        current()->scope_depth++;
+        current()->locals.push_back(Local{"super", current()->scope_depth});
+        
+        emit(OpCode::GetLocal, static_cast<u32>(current()->locals.size() - 1), decl.name.span.start.line);
+        emit(OpCode::GetGlobal, name_idx, decl.name.span.start.line);
+        emit(OpCode::Inherit, 0, decl.name.span.start.line);
+    }
 
     for (const auto& method : decl.methods)
     {
@@ -488,6 +498,35 @@ std::any IRGenerator::visit(const ClassDecl& decl)
         emit(OpCode::Method, method_name_idx, method->name.span.start.line);
     }
     
+    if (decl.superclass) {
+        emit(OpCode::CloseUpvalue, 0, decl.name.span.start.line);
+        current()->locals.pop_back();
+        current()->scope_depth--;
+    }
+    
+    return std::any();
+}
+
+std::any IRGenerator::visit(const SuperExpr& expr)
+{
+    auto emit_var = [&](const std::string& name) {
+        int arg = resolve_local(name);
+        if (arg != -1) emit(OpCode::GetLocal, static_cast<u32>(arg), expr.keyword.span.start.line);
+        else {
+            int upvalue = resolve_upvalue(static_cast<int>(m_compiler_stack.size()) - 1, name);
+            if (upvalue != -1) emit(OpCode::GetUpvalue, static_cast<u32>(upvalue), expr.keyword.span.start.line);
+            else {
+                u32 index = make_constant(Value(name));
+                emit(OpCode::GetGlobal, index, expr.keyword.span.start.line);
+            }
+        }
+    };
+    
+    emit_var("this"); // push 'this'
+    emit_var("super"); // push 'super' class
+    
+    u32 name_idx = make_constant(Value(std::string(expr.method.lexeme)));
+    emit(OpCode::GetSuper, name_idx, expr.keyword.span.start.line);
     return std::any();
 }
 

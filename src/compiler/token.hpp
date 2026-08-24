@@ -40,9 +40,10 @@ enum class TokenType
     // Keywords
     Fn, Let, Return, Struct, Class, Match,
     If, Else, True, False,
-    For, While, And, Or, This, Import, Yield,
+    For, While, And, Or, This, Super, Import, Yield,
 
     // Special
+    FString,
     Underscore, // _
     Eof,
     Error

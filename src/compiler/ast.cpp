@@ -250,11 +250,21 @@ std::any AstPrinter::visit(const FnExpr& expr)
 std::any AstPrinter::visit(const ClassDecl& decl)
 {
     std::string result = "(class " + std::string(decl.name.lexeme);
+    if (decl.superclass)
+    {
+        result += " < " + std::string(decl.superclass->name.lexeme);
+    }
     for (const auto& method : decl.methods)
     {
         result += " " + std::any_cast<std::string>(method->accept(*this));
     }
-    return result + ")";
+    result += ")";
+    return result;
+}
+
+std::any AstPrinter::visit(const SuperExpr& expr)
+{
+    return std::string("(super ") + std::string(expr.method.lexeme) + ")";
 }
 
 std::any AstPrinter::visit(const ImportStmt& stmt)

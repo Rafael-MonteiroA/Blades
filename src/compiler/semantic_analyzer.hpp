@@ -45,6 +45,7 @@ public:
     std::any visit(const FnExpr& expr) override;
     std::any visit(const YieldExpr& expr) override;
     std::any visit(const MatchExpr& expr) override;
+    std::any visit(const SuperExpr& expr) override;
 
     // Statements
     std::any visit(const ExprStmt& stmt) override;

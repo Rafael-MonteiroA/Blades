@@ -61,6 +61,7 @@ struct ObjDict
 struct ObjClass
 {
     std::string name;
+    std::shared_ptr<ObjClass> superclass;
     std::unordered_map<std::string, Value> methods;
 };
 

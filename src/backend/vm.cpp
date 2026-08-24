@@ -202,9 +202,9 @@ InterpretResult VM::run()
                         push(Value(a.as_int() + b.as_int()));
                     }
                 }
-                else if (a.is_string() && b.is_string())
+                else if (a.is_string() || b.is_string())
                 {
-                    push(Value(a.as_string() + b.as_string()));
+                    push(Value(to_string(a) + to_string(b)));
                 }
                 else if (a.is_vec2() && b.is_vec2())
                 {
@@ -745,6 +745,50 @@ InterpretResult VM::run()
                 {
                     klass_val.as_class()->methods[name] = method;
                 }
+                break;
+            }
+            case OpCode::Inherit:
+            {
+                Value subclass_val = pop();
+                Value superclass_val = pop();
+                
+                if (!superclass_val.is_class()) {
+                    runtime_error("Superclass must be a class.");
+                    return InterpretResult::RuntimeError;
+                }
+                
+                auto subclass = subclass_val.as_class();
+                auto superclass = superclass_val.as_class();
+                
+                subclass->superclass = superclass;
+                for (const auto& [name, method] : superclass->methods) {
+                    subclass->methods[name] = method;
+                }
+                
+                break;
+            }
+            case OpCode::GetSuper:
+            {
+                std::string name = READ_CONSTANT(inst.operand).as_string();
+                Value superclass_val = pop();
+                Value instance_val = pop();
+                
+                if (!superclass_val.is_class()) {
+                    runtime_error("Superclass must be a class.");
+                    return InterpretResult::RuntimeError;
+                }
+                
+                auto superclass = superclass_val.as_class();
+                auto it = superclass->methods.find(name);
+                if (it == superclass->methods.end()) {
+                    runtime_error(("Undefined property '" + name + "'.").c_str());
+                    return InterpretResult::RuntimeError;
+                }
+                
+                auto bound = std::make_shared<ObjBoundMethod>();
+                bound->receiver = instance_val;
+                bound->method = it->second.as_closure();
+                push(Value(bound));
                 break;
             }
             case OpCode::Pop:

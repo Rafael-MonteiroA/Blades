@@ -33,6 +33,7 @@ class ThisExpr;
 class FnExpr;
 class YieldExpr;
 class MatchExpr;
+class SuperExpr;
 
 class Stmt;
 class ExprStmt;
@@ -73,6 +74,7 @@ public:
     virtual std::any visit(const FnExpr& expr) = 0;
     virtual std::any visit(const YieldExpr& expr) = 0;
     virtual std::any visit(const MatchExpr& expr) = 0;
+    virtual std::any visit(const SuperExpr& expr) = 0;
 
     // Statements
     virtual std::any visit(const ExprStmt& stmt) = 0;
@@ -320,6 +322,17 @@ public:
     std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
 };
 
+class SuperExpr : public Expr
+{
+public:
+    Token keyword;
+    Token method;
+
+    SuperExpr(Token keyword, Token method)
+        : keyword(std::move(keyword)), method(std::move(method)) {}
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Statements
 // ─────────────────────────────────────────────────────────────────────────────
@@ -423,10 +436,11 @@ class ClassDecl : public Stmt
 {
 public:
     Token name;
+    std::unique_ptr<VariableExpr> superclass;
     std::vector<std::unique_ptr<FunctionDecl>> methods;
 
-    ClassDecl(Token name, std::vector<std::unique_ptr<FunctionDecl>> methods)
-        : name(std::move(name)), methods(std::move(methods)) {}
+    ClassDecl(Token name, std::unique_ptr<VariableExpr> superclass, std::vector<std::unique_ptr<FunctionDecl>> methods)
+        : name(std::move(name)), superclass(std::move(superclass)), methods(std::move(methods)) {}
     std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
 };
 
@@ -467,6 +481,7 @@ public:
     std::any visit(const FnExpr& expr) override;
     std::any visit(const YieldExpr& expr) override;
     std::any visit(const MatchExpr& expr) override;
+    std::any visit(const SuperExpr& expr) override;
 
     std::any visit(const ExprStmt& stmt) override;
     std::any visit(const LetStmt& stmt) override;

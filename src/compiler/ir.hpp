@@ -79,6 +79,8 @@ enum class OpCode : u8
     // Classes
     Class,
     Method,
+    Inherit,
+    GetSuper,
 
     // End of instruction
     Return

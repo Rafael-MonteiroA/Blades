@@ -142,6 +142,11 @@ static InterpretResult execute_source(std::string_view source, const char* name,
         std::cerr << e.what() << "\n";
         return InterpretResult::CompileError;
     }
+    catch (const std::exception& e)
+    {
+        std::cerr << "C++ Exception: " << e.what() << "\n";
+        return InterpretResult::RuntimeError;
+    }
     
     IRGenerator generator;
     auto function = generator.generate(stmts);

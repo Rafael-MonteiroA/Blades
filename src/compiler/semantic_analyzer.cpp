@@ -77,13 +77,21 @@ std::any SemanticAnalyzer::visit(const BinaryExpr& expr)
     switch (expr.op.type)
     {
         case TokenType::Plus:
+            if ((left == ValueType::Int || left == ValueType::Float) &&
+                (right == ValueType::Int || right == ValueType::Float))
+            {
+                return (left == ValueType::Float || right == ValueType::Float) ? ValueType::Float : ValueType::Int;
+            }
+            if (left == ValueType::String || right == ValueType::String) return ValueType::String;
+            error(expr.op, "Operands must be numbers or at least one must be a string.");
+            break;
+            
         case TokenType::Minus:
         case TokenType::Star:
         case TokenType::Slash:
             if ((left == ValueType::Int || left == ValueType::Float) &&
                 (right == ValueType::Int || right == ValueType::Float))
             {
-                // If either is float, result is float, else int.
                 return (left == ValueType::Float || right == ValueType::Float) ? ValueType::Float : ValueType::Int;
             }
             error(expr.op, "Operands must be numbers.");
@@ -374,6 +382,15 @@ std::any SemanticAnalyzer::visit(const ClassDecl& decl)
 {
     m_symbols.declare(decl.name.lexeme, ValueType::Unknown);
     
+    if (decl.superclass) {
+        if (decl.name.lexeme == decl.superclass->name.lexeme) {
+            error(decl.superclass->name, "A class cannot inherit from itself.");
+        }
+        decl.superclass->accept(*this);
+        m_symbols.begin_scope();
+        m_symbols.declare("super", ValueType::Unknown);
+    }
+    
     m_symbols.begin_scope();
     m_symbols.declare("this", ValueType::Unknown);
     
@@ -391,7 +408,17 @@ std::any SemanticAnalyzer::visit(const ClassDecl& decl)
     
     m_symbols.end_scope();
     
+    if (decl.superclass) {
+        m_symbols.end_scope();
+    }
+    
     return std::any();
+}
+
+std::any SemanticAnalyzer::visit(const SuperExpr& expr)
+{
+    m_symbols.lookup(expr.keyword.lexeme);
+    return std::any(ValueType::Unknown);
 }
 
 std::any SemanticAnalyzer::visit(const FnExpr& expr)
