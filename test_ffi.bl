@@ -1,6 +1,0 @@
-let body = get_fake_body();
-print("Initial X:");
-print(get_fake_body_x(body));
-move_fake_body(body, 50.0, 0.0);
-print("New X:");
-print(get_fake_body_x(body));

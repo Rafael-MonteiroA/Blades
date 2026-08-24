@@ -1,8 +1,0 @@
-let a = sin(0);
-print(a); // 0
-let b = cos(0);
-print(b); // 1
-let c = sqrt(16);
-print(c); // 4
-write_text("test_io.txt", "hello blades");
-print(read_text("test_io.txt"));

@@ -1,1 +1,0 @@
-match "idle" { "idle" => 1, _ => 0 };
