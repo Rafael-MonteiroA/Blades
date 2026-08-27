@@ -69,6 +69,7 @@ std::string disassemble_instruction(const IRChunk& chunk, u32 offset)
         case OpCode::Subtract:     return oss.str() + simple_instruction("OP_SUBTRACT");
         case OpCode::Multiply:     return oss.str() + simple_instruction("OP_MULTIPLY");
         case OpCode::Divide:       return oss.str() + simple_instruction("OP_DIVIDE");
+        case OpCode::Modulo:       return oss.str() + simple_instruction("OP_MODULO");
         case OpCode::Negate:       return oss.str() + simple_instruction("OP_NEGATE");
         case OpCode::BitAnd:       return oss.str() + simple_instruction("OP_BIT_AND");
         case OpCode::BitOr:        return oss.str() + simple_instruction("OP_BIT_OR");
@@ -110,6 +111,14 @@ std::string disassemble_instruction(const IRChunk& chunk, u32 offset)
         case OpCode::SetUpvalue:   return oss.str() + byte_instruction("OP_SET_UPVALUE", inst.operand);
         case OpCode::CloseUpvalue: return oss.str() + simple_instruction("OP_CLOSE_UPVALUE");
         case OpCode::Return:       return oss.str() + simple_instruction("OP_RETURN");
+        case OpCode::Dup:          return oss.str() + simple_instruction("OP_DUP");
+        case OpCode::Break:        return oss.str() + byte_instruction("OP_BREAK", inst.operand);
+        case OpCode::Continue:     return oss.str() + byte_instruction("OP_CONTINUE", inst.operand);
+        
+        case OpCode::Class:        return oss.str() + constant_instruction("OP_CLASS", chunk, inst.operand);
+        case OpCode::Method:       return oss.str() + constant_instruction("OP_METHOD", chunk, inst.operand);
+        case OpCode::Inherit:      return oss.str() + simple_instruction("OP_INHERIT");
+        case OpCode::GetSuper:     return oss.str() + constant_instruction("OP_GET_SUPER", chunk, inst.operand);
         
         default:                   return oss.str() + "Unknown opcode";
     }

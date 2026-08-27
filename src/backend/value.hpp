@@ -93,12 +93,13 @@ struct ObjColor {
 
 struct Value
 {
-    std::variant<Nil, int, double, bool, std::string, NativeFn, std::shared_ptr<ObjFunction>, std::shared_ptr<ObjClosure>, std::shared_ptr<ObjArray>, std::shared_ptr<ObjDict>, std::shared_ptr<ObjClass>, std::shared_ptr<ObjInstance>, std::shared_ptr<ObjBoundMethod>, std::shared_ptr<ObjUserData>, std::shared_ptr<ObjFiber>, ObjVec2, ObjVec3, ObjColor> data;
+    std::variant<Nil, int64_t, double, bool, std::string, NativeFn, std::shared_ptr<ObjFunction>, std::shared_ptr<ObjClosure>, std::shared_ptr<ObjArray>, std::shared_ptr<ObjDict>, std::shared_ptr<ObjClass>, std::shared_ptr<ObjInstance>, std::shared_ptr<ObjBoundMethod>, std::shared_ptr<ObjUserData>, std::shared_ptr<ObjFiber>, ObjVec2, ObjVec3, ObjColor> data;
 
     // Constructors
     Value() : data(Nil{}) {}
     Value(Nil n) : data(n) {}
-    Value(int i) : data(i) {}
+    Value(int i) : data(static_cast<int64_t>(i)) {}
+    Value(int64_t i) : data(i) {}
     Value(double d) : data(d) {}
     Value(bool b) : data(b) {}
     Value(std::string s) : data(std::move(s)) {}
@@ -119,7 +120,7 @@ struct Value
 
     // Type checking
     bool is_nil() const { return std::holds_alternative<Nil>(data); }
-    bool is_int() const { return std::holds_alternative<int>(data); }
+    bool is_int() const { return std::holds_alternative<int64_t>(data); }
     bool is_double() const { return std::holds_alternative<double>(data); }
     bool is_bool() const { return std::holds_alternative<bool>(data); }
     bool is_string() const { return std::holds_alternative<std::string>(data); }
@@ -139,7 +140,7 @@ struct Value
     bool is_color() const { return std::holds_alternative<ObjColor>(data); }
 
     // Extraction
-    int as_int() const { return std::get<int>(data); }
+    int64_t as_int() const { return std::get<int64_t>(data); }
     double as_double() const { return std::get<double>(data); }
     bool as_bool() const { return std::get<bool>(data); }
     const std::string& as_string() const { return std::get<std::string>(data); }

@@ -22,6 +22,7 @@ const char* to_string(TokenType type)
         case TokenType::Semicolon:    return "Semicolon";
         case TokenType::Slash:        return "Slash";
         case TokenType::Star:         return "Star";
+        case TokenType::Percent:      return "Percent";
         case TokenType::Colon:        return "Colon";
         case TokenType::Ampersand:    return "Ampersand";
         case TokenType::Pipe:         return "Pipe";
@@ -39,12 +40,20 @@ const char* to_string(TokenType type)
         case TokenType::LessLess:     return "LessLess";
         case TokenType::Arrow:        return "Arrow";
         case TokenType::FatArrow:     return "FatArrow";
+        case TokenType::AmpAmp:       return "AmpAmp";
+        case TokenType::PipePipe:     return "PipePipe";
+        case TokenType::PlusEqual:    return "PlusEqual";
+        case TokenType::MinusEqual:   return "MinusEqual";
+        case TokenType::StarEqual:    return "StarEqual";
+        case TokenType::SlashEqual:   return "SlashEqual";
+        case TokenType::PercentEqual: return "PercentEqual";
         case TokenType::Identifier:   return "Identifier";
         case TokenType::String:       return "String";
         case TokenType::Integer:      return "Integer";
         case TokenType::Float:        return "Float";
         case TokenType::Fn:           return "Fn";
         case TokenType::Let:          return "Let";
+        case TokenType::Const:        return "Const";
         case TokenType::Return:       return "Return";
         case TokenType::Struct:       return "Struct";
         case TokenType::Class:        return "Class";
@@ -53,6 +62,7 @@ const char* to_string(TokenType type)
         case TokenType::Else:         return "Else";
         case TokenType::True:         return "True";
         case TokenType::False:        return "False";
+        case TokenType::Nil:          return "Nil";
         case TokenType::For:          return "For";
         case TokenType::While:        return "While";
         case TokenType::And:          return "And";
@@ -61,6 +71,10 @@ const char* to_string(TokenType type)
         case TokenType::Super:        return "Super";
         case TokenType::Import:       return "Import";
         case TokenType::Yield:        return "Yield";
+        case TokenType::Break:        return "Break";
+        case TokenType::Continue:     return "Continue";
+        case TokenType::In:           return "In";
+        case TokenType::Enum:         return "Enum";
         case TokenType::FString:      return "FString";
         case TokenType::Underscore:   return "Underscore";
         case TokenType::Eof:          return "Eof";

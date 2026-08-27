@@ -23,7 +23,7 @@ enum class TokenType
     LeftBrace, RightBrace,
     LeftBracket, RightBracket,
     Comma, Dot, Minus, Plus,
-    Semicolon, Slash, Star,
+    Semicolon, Slash, Star, Percent,
     Colon, Ampersand, Pipe, Caret, Tilde,
 
     // One or two character tokens
@@ -33,14 +33,19 @@ enum class TokenType
     Less, LessEqual, LessLess,
     Arrow, // ->
     FatArrow, // =>
+    AmpAmp, PipePipe, // && ||
+
+    // Compound assignment
+    PlusEqual, MinusEqual, StarEqual, SlashEqual, PercentEqual,
 
     // Literals
     Identifier, String, Integer, Float,
 
     // Keywords
-    Fn, Let, Return, Struct, Class, Match,
-    If, Else, True, False,
+    Fn, Let, Const, Return, Struct, Class, Match,
+    If, Else, True, False, Nil,
     For, While, And, Or, This, Super, Import, Yield,
+    Break, Continue, In, Enum,
 
     // Special
     FString,

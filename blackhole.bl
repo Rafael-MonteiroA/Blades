@@ -1,0 +1,58 @@
+print("Starting 3D Black Hole Simulation...");
+print("Using Native C++ Particle Engine!");
+
+init_window(1280, 720, "Buraco Negro 3D (Native Engine)");
+set_target_fps(60);
+disable_cursor();
+
+let cam_pos = vec3(0.0, 30.0, 80.0);
+let cam_target = vec3(0.0, 0.0, 0.0);
+let cam_up = vec3(0.0, 1.0, 0.0);
+let camera = create_camera_3d(cam_pos, cam_target, cam_up, 45.0, CAMERA_PERSPECTIVE());
+
+let G = 0.5;
+let black_hole_mass = 15000.0;
+let event_horizon = 5.0;
+
+let initial_particles = 1500;
+let ps = create_particle_system(initial_particles, G, black_hole_mass);
+
+let dt = 0.016;
+
+print("Simulation Running. Controls:");
+print(" - Mouse to look around");
+print(" - WASD to move camera");
+print(" - UP arrow to add particles (+1000)");
+print(" - DOWN arrow to remove particles (-1000)");
+
+while (window_should_close() == false) {
+    if (is_key_pressed(KEY_UP())) {
+        add_particles(ps, 1000, G, black_hole_mass);
+    }
+    
+    if (is_key_pressed(KEY_DOWN())) {
+        remove_particles(ps, 1000);
+    }
+    
+    update_camera(camera, CAMERA_FREE());
+    
+    // Physics updated by C++
+    update_particle_system(ps, black_hole_mass, G, event_horizon, dt);
+
+    begin_drawing();
+    clear_background(color(2, 2, 5, 255));
+    begin_mode_3d(camera);
+    
+    draw_sphere(vec3(0.0, 0.0, 0.0), event_horizon, color(0, 0, 0, 255));
+    draw_sphere(vec3(0.0, 0.0, 0.0), event_horizon + 0.3, color(255, 100, 50, 150));
+    draw_sphere(vec3(0.0, 0.0, 0.0), event_horizon + 1.2, color(200, 50, 0, 50));
+    
+    // Rendering handled by C++
+    draw_particle_system(ps);
+    
+    end_mode_3d();
+    end_drawing();
+}
+
+close_window();
+print("Simulation Finished.");

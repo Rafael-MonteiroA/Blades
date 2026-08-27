@@ -58,6 +58,8 @@ public:
     std::any visit(const FunctionDecl& decl) override;
     std::any visit(const ClassDecl& decl) override;
     std::any visit(const ImportStmt& stmt) override;
+    std::any visit(const BreakStmt& stmt) override;
+    std::any visit(const ContinueStmt& stmt) override;
 
 private:
     SymbolTable& m_symbols;

@@ -66,9 +66,19 @@ public:
     std::any visit(const FunctionDecl& decl) override;
     std::any visit(const ClassDecl& decl) override;
     std::any visit(const ImportStmt& stmt) override;
+    std::any visit(const BreakStmt& stmt) override;
+    std::any visit(const ContinueStmt& stmt) override;
 
 private:
     std::vector<std::unique_ptr<CompilerState>> m_compiler_stack;
+
+    // Loop tracking for break/continue
+    struct LoopContext {
+        u32 loop_start;              // IP of loop start (for continue)
+        std::vector<u32> break_jumps; // Indices of break jumps to patch
+        int scope_depth;             // Scope depth at loop entry
+    };
+    std::vector<LoopContext> m_loop_stack;
 
     CompilerState* current() { return m_compiler_stack.back().get(); }
     IRChunk* current_chunk() { return &current()->function->chunk; }
@@ -87,6 +97,12 @@ private:
     {
         emit(op, 0xffff, line); // Placeholder
         return static_cast<u32>(current_chunk()->code.size() - 1);
+    }
+
+    void emit_constant(Value value, u32 line)
+    {
+        u32 idx = make_constant(std::move(value));
+        emit(OpCode::Constant, idx, line);
     }
     
     void patch_jump(u32 offset)

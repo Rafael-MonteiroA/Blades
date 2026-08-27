@@ -1,0 +1,182 @@
+// test_match.bl — Teste completo do Match/Switch
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. Match básico com expressão simples
+// ─────────────────────────────────────────────────────────────────────────────
+print("=== 1. Match Basico ===");
+
+let x = 2;
+let resultado = match(x) {
+    1 => "um",
+    2 => "dois",
+    3 => "tres",
+    _ => "outro"
+};
+print(resultado);  // expect: dois
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. Match com strings
+// ─────────────────────────────────────────────────────────────────────────────
+print("=== 2. Match com Strings ===");
+
+let cor = "azul";
+let descricao = match(cor) {
+    "vermelho" => "cor quente",
+    "azul" => "cor fria",
+    "verde" => "cor da natureza",
+    _ => "cor desconhecida"
+};
+print(descricao);  // expect: cor fria
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. Or-patterns (múltiplos padrões no mesmo arm)
+// ─────────────────────────────────────────────────────────────────────────────
+print("=== 3. Or-Patterns ===");
+
+let dia = 6;
+let tipo_dia = match(dia) {
+    1 | 2 | 3 | 4 | 5 => "dia util",
+    6 | 7 => "fim de semana",
+    _ => "invalido"
+};
+print(tipo_dia);  // expect: fim de semana
+
+let dia2 = 3;
+let tipo_dia2 = match(dia2) {
+    1 | 2 | 3 | 4 | 5 => "dia util",
+    6 | 7 => "fim de semana",
+    _ => "invalido"
+};
+print(tipo_dia2);  // expect: dia util
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. Match com bloco de statements no arm
+// ─────────────────────────────────────────────────────────────────────────────
+print("=== 4. Match com Blocos ===");
+
+let nivel = 3;
+match(nivel) {
+    1 => {
+        print("Nivel: Iniciante");
+    },
+    2 => {
+        print("Nivel: Intermediario");
+    },
+    3 => {
+        let msg = "Nivel: Avancado";
+        print(msg);
+    },
+    _ => {
+        print("Nivel: Desconhecido");
+    }
+};
+// expect: Nivel: Avancado
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. Match com guard (if condition)
+// ─────────────────────────────────────────────────────────────────────────────
+print("=== 5. Match com Guards ===");
+
+let num = 15;
+let classificacao = match(num) {
+    0 => "zero",
+    _ if num < 0 => "negativo",
+    _ if num < 10 => "pequeno",
+    _ if num < 100 => "medio",
+    _ => "grande"
+};
+print(classificacao);  // expect: medio
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. Match sem arm default (retorna nil)
+// ─────────────────────────────────────────────────────────────────────────────
+print("=== 6. Match Sem Default ===");
+
+let v = 99;
+let r = match(v) {
+    1 => "um",
+    2 => "dois"
+};
+print("resultado:", r);  // expect: nil (no arm matched)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. Match com booleanos
+// ─────────────────────────────────────────────────────────────────────────────
+print("=== 7. Match com Booleanos ===");
+
+let flag = true;
+match(flag) {
+    true => print("verdadeiro"),
+    false => print("falso"),
+    _ => print("outro")
+};
+// expect: verdadeiro
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. Match dentro de função
+// ─────────────────────────────────────────────────────────────────────────────
+print("=== 8. Match em Funcao ===");
+
+fn classificar_nota(nota) {
+    return match(nota) {
+        10 => "Perfeito!",
+        _ if nota >= 7 => "Aprovado",
+        _ if nota >= 5 => "Recuperacao",
+        _ => "Reprovado"
+    };
+}
+
+print(classificar_nota(10));   // expect: Perfeito!
+print(classificar_nota(8));    // expect: Aprovado
+print(classificar_nota(6));    // expect: Recuperacao
+print(classificar_nota(3));    // expect: Reprovado
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. Match com or-patterns e bloco
+// ─────────────────────────────────────────────────────────────────────────────
+print("=== 9. Or-Patterns com Bloco ===");
+
+let c = "b";
+match(c) {
+    "a" | "e" | "i" | "o" | "u" => {
+        print("vogal");
+    },
+    _ => {
+        print("consoante ou outro");
+    }
+};
+// expect: consoante ou outro
+
+let vogal = "e";
+match(vogal) {
+    "a" | "e" | "i" | "o" | "u" => {
+        print("vogal");
+    },
+    _ => {
+        print("consoante ou outro");
+    }
+};
+// expect: vogal
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. Match em loop
+// ─────────────────────────────────────────────────────────────────────────────
+print("=== 10. Match em Loop ===");
+
+for (let i = 1; i <= 5; i = i + 1) {
+    let label = match(i) {
+        1 => "primeiro",
+        2 | 3 => "segundo ou terceiro",
+        4 => "quarto",
+        _ => "quinto ou mais"
+    };
+    print(i, "->", label);
+}
+// expect:
+// 1 -> primeiro
+// 2 -> segundo ou terceiro
+// 3 -> segundo ou terceiro
+// 4 -> quarto
+// 5 -> quinto ou mais
+
+print("Todos os testes de match passaram!");

@@ -54,6 +54,8 @@ private:
     std::unique_ptr<Stmt> statement();
     std::unique_ptr<Stmt> if_statement();
     std::unique_ptr<Stmt> return_statement();
+    std::unique_ptr<Stmt> break_statement();
+    std::unique_ptr<Stmt> continue_statement();
     std::unique_ptr<Stmt> while_statement();
     std::unique_ptr<Stmt> for_statement();
     std::unique_ptr<Stmt> block_statement();
@@ -77,6 +79,9 @@ private:
     std::unique_ptr<Expr> call();
     std::unique_ptr<Expr> primary();
     std::unique_ptr<Expr> parse_fstring(Token token);
+
+    // Loop tracking for break/continue
+    int m_loop_depth = 0;
 };
 
 } // namespace blades

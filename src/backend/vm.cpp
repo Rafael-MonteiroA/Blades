@@ -1,5 +1,6 @@
 #include "backend/vm.hpp"
 
+#include <cmath>
 #include <iostream>
 #include <sstream>
 
@@ -314,6 +315,36 @@ InterpretResult VM::run()
                 }
                 break;
             }
+            case OpCode::Modulo:
+            {
+                Value b = pop();
+                Value a = pop();
+                if (a.is_int() && b.is_int())
+                {
+                    if (b.as_int() == 0)
+                    {
+                        runtime_error("Modulo by zero.");
+                        return InterpretResult::RuntimeError;
+                    }
+                    push(Value(a.as_int() % b.as_int()));
+                }
+                else if (a.is_number() && b.is_number())
+                {
+                    // Float modulo via fmod
+                    if (b.as_number() == 0)
+                    {
+                        runtime_error("Modulo by zero.");
+                        return InterpretResult::RuntimeError;
+                    }
+                    push(Value(std::fmod(a.as_number(), b.as_number())));
+                }
+                else
+                {
+                    runtime_error("Operands for '%' must be numbers.");
+                    return InterpretResult::RuntimeError;
+                }
+                break;
+            }
             case OpCode::Negate:
             {
                 if (!peek(0).is_number())
@@ -507,28 +538,28 @@ InterpretResult VM::run()
             {
                 Value index = pop();
                 Value object = pop();
-                
+
                 if (object.is_array())
                 {
                     if (!index.is_int())
                     {
-                        std::cerr << "Runtime Error: Array index must be an integer.\n";
+                        runtime_error("Array index must be an integer.");
                         return InterpretResult::RuntimeError;
                     }
-                    int idx = index.as_int();
+                    int64_t idx = index.as_int();
                     auto arr = object.as_array();
-                    if (idx < 0 || idx >= static_cast<int>(arr->elements.size()))
+                    if (idx < 0 || idx >= static_cast<int64_t>(arr->elements.size()))
                     {
-                        std::cerr << "Runtime Error: Index out of bounds.\n";
+                        runtime_error("Index out of bounds.");
                         return InterpretResult::RuntimeError;
                     }
-                    push(arr->elements[idx]);
+                    push(arr->elements[static_cast<size_t>(idx)]);
                 }
                 else if (object.is_dict())
                 {
                     if (!index.is_string())
                     {
-                        std::cerr << "Runtime Error: Dictionary key must be a string.\n";
+                        runtime_error("Dictionary key must be a string.");
                         return InterpretResult::RuntimeError;
                     }
                     auto dict = object.as_dict();
@@ -542,9 +573,25 @@ InterpretResult VM::run()
                         push(it->second);
                     }
                 }
+                else if (object.is_string())
+                {
+                    if (!index.is_int())
+                    {
+                        runtime_error("String index must be an integer.");
+                        return InterpretResult::RuntimeError;
+                    }
+                    int64_t idx = index.as_int();
+                    const std::string& str = object.as_string();
+                    if (idx < 0 || idx >= static_cast<int64_t>(str.size()))
+                    {
+                        runtime_error("String index out of bounds.");
+                        return InterpretResult::RuntimeError;
+                    }
+                    push(Value(std::string(1, str[static_cast<size_t>(idx)])));
+                }
                 else
                 {
-                    std::cerr << "Runtime Error: Object is not subscriptable.\n";
+                    runtime_error("Object is not subscriptable.");
                     return InterpretResult::RuntimeError;
                 }
                 break;
@@ -554,29 +601,29 @@ InterpretResult VM::run()
                 Value value = pop();
                 Value index = pop();
                 Value object = pop();
-                
+
                 if (object.is_array())
                 {
                     if (!index.is_int())
                     {
-                        std::cerr << "Runtime Error: Array index must be an integer.\n";
+                        runtime_error("Array index must be an integer.");
                         return InterpretResult::RuntimeError;
                     }
-                    int idx = index.as_int();
+                    int64_t idx = index.as_int();
                     auto arr = object.as_array();
-                    if (idx < 0 || idx >= static_cast<int>(arr->elements.size()))
+                    if (idx < 0 || idx >= static_cast<int64_t>(arr->elements.size()))
                     {
-                        std::cerr << "Runtime Error: Index out of bounds.\n";
+                        runtime_error("Index out of bounds.");
                         return InterpretResult::RuntimeError;
                     }
-                    arr->elements[idx] = value;
+                    arr->elements[static_cast<size_t>(idx)] = value;
                     push(value);
                 }
                 else if (object.is_dict())
                 {
                     if (!index.is_string())
                     {
-                        std::cerr << "Runtime Error: Dictionary key must be a string.\n";
+                        runtime_error("Dictionary key must be a string.");
                         return InterpretResult::RuntimeError;
                     }
                     auto dict = object.as_dict();
@@ -585,7 +632,7 @@ InterpretResult VM::run()
                 }
                 else
                 {
-                    std::cerr << "Runtime Error: Object is not subscriptable.\n";
+                    runtime_error("Object is not subscriptable.");
                     return InterpretResult::RuntimeError;
                 }
                 break;
@@ -632,11 +679,11 @@ InterpretResult VM::run()
                     if (name == "length")
                     {
                         auto arr = object.as_array();
-                        push(Value(static_cast<int>(arr->elements.size())));
+                        push(Value(static_cast<int64_t>(arr->elements.size())));
                     }
                     else
                     {
-                        std::cerr << "Runtime Error: Undefined property '" << name << "' on array.\n";
+                        runtime_error(("Undefined property '" + name + "' on array.").c_str());
                         return InterpretResult::RuntimeError;
                     }
                 }

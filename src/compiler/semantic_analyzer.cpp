@@ -22,10 +22,7 @@ void SemanticAnalyzer::error(const Token& token, const std::string& message)
 ValueType SemanticAnalyzer::evaluate(const Expr& expr)
 {
     auto type = std::any_cast<ValueType>(expr.accept(*this));
-    // Assign back to the AST node (mutable cast since we passed const ref, or we just trust the field is mutable)
-    // Actually, `expr` is const. We can mark `resolved_type` as mutable in ast.hpp, or use const_cast.
-    // We'll use const_cast for now to avoid polluting ast.hpp with mutables if not strictly needed.
-    const_cast<Expr&>(expr).resolved_type = type;
+    expr.resolved_type = type;
     return type;
 }
 
@@ -59,6 +56,7 @@ std::any SemanticAnalyzer::visit(const LiteralExpr& expr)
         case TokenType::String:  type = ValueType::String; break;
         case TokenType::True:
         case TokenType::False:   type = ValueType::Bool; break;
+        case TokenType::Nil:     type = ValueType::Nil; break;
         default: break;
     }
     return type;
@@ -89,6 +87,7 @@ std::any SemanticAnalyzer::visit(const BinaryExpr& expr)
         case TokenType::Minus:
         case TokenType::Star:
         case TokenType::Slash:
+        case TokenType::Percent:
             if ((left == ValueType::Int || left == ValueType::Float) &&
                 (right == ValueType::Int || right == ValueType::Float))
             {
@@ -118,8 +117,13 @@ std::any SemanticAnalyzer::visit(const BinaryExpr& expr)
             return ValueType::Bool;
             
         case TokenType::And:
+        case TokenType::AmpAmp:
         case TokenType::Or:
-            if (left == ValueType::Bool && right == ValueType::Bool)
+        case TokenType::PipePipe:
+            // Short-circuit operators — both operands should be truthy/falsy values.
+            // We accept Any/Unknown permissively (dynamic types from functions etc.)
+            if ((left == ValueType::Bool || left == ValueType::Unknown || left == ValueType::Any) &&
+                (right == ValueType::Bool || right == ValueType::Unknown || right == ValueType::Any))
             {
                 return ValueType::Bool;
             }
@@ -447,40 +451,59 @@ std::any SemanticAnalyzer::visit(const YieldExpr& expr)
 std::any SemanticAnalyzer::visit(const MatchExpr& expr)
 {
     evaluate(*expr.value);
-    ValueType return_type = ValueType::Unknown;
     
     bool has_default = false;
     for (const auto& arm : expr.arms)
     {
-        if (arm.pattern)
-        {
-            evaluate(*arm.pattern);
-        }
-        else
+        if (arm.is_default())
         {
             has_default = true;
         }
+        else
+        {
+            // Validate all patterns
+            for (const auto& pat : arm.patterns)
+            {
+                evaluate(*pat);
+            }
+        }
         
-        ValueType arm_type = evaluate(*arm.body);
-        if (return_type == ValueType::Unknown)
+        // Validate guard if present
+        if (arm.guard)
         {
-            return_type = arm_type;
+            evaluate(*arm.guard);
         }
-        else if (arm_type != ValueType::Unknown && arm_type != return_type)
+        
+        // Validate body
+        if (arm.body_block)
         {
-            error(expr.keyword, "Match arms have incompatible return types.");
+            execute(*arm.body_block);
+        }
+        else if (arm.body_expr)
+        {
+            evaluate(*arm.body_expr);
         }
     }
     
-    if (!has_default)
-    {
-        error(expr.keyword, "Match expression must have a default '_' fallback arm.");
-    }
+    // Note: not requiring a default arm — match can return nil if no arm matches
+    (void)has_default;
     
-    return return_type;
+    return ValueType::Unknown;
 }
 
 std::any SemanticAnalyzer::visit(const ImportStmt& stmt)
+{
+    (void)stmt;
+    return std::any();
+}
+
+std::any SemanticAnalyzer::visit(const BreakStmt& stmt)
+{
+    (void)stmt;
+    return std::any();
+}
+
+std::any SemanticAnalyzer::visit(const ContinueStmt& stmt)
 {
     (void)stmt;
     return std::any();

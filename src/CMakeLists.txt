@@ -21,7 +21,7 @@ target_include_directories(blades_lib
 )
 
 target_link_libraries(blades_lib
-    PUBLIC blades_warnings
+    PUBLIC blades_warnings raylib
 )
 
 # ── blades: main executable ───────────────────────────────────────────────────

@@ -25,6 +25,7 @@ enum class OpCode : u8
     Subtract,
     Multiply,
     Divide,
+    Modulo,
     Negate,
     BitAnd,
     BitOr,
@@ -57,8 +58,7 @@ enum class OpCode : u8
     Jump,
     JumpIfFalse,
     Loop,
-    BitwiseNot,
-    
+
     Yield, // Suspend current fiber
 
     // Functions & Closures
@@ -83,7 +83,11 @@ enum class OpCode : u8
     GetSuper,
 
     // End of instruction
-    Return
+    Return,
+
+    // Loop control
+    Break,
+    Continue
 };
 
 struct Instruction

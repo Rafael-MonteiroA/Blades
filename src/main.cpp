@@ -61,6 +61,48 @@ struct ExecutionState
         globals.declare("input", ValueType::Any);
         globals.declare("len", ValueType::Any);
         
+        globals.declare("sin", ValueType::Any);
+        globals.declare("cos", ValueType::Any);
+        globals.declare("tan", ValueType::Any);
+        globals.declare("sqrt", ValueType::Any);
+        globals.declare("abs", ValueType::Any);
+        globals.declare("pow", ValueType::Any);
+        globals.declare("dot", ValueType::Any);
+        globals.declare("array_push", ValueType::Any);
+        globals.declare("array_pop", ValueType::Any);
+        globals.declare("read_text", ValueType::Any);
+        globals.declare("write_text", ValueType::Any);
+        globals.declare("vec2", ValueType::Any);
+        globals.declare("vec3", ValueType::Any);
+        globals.declare("color", ValueType::Any);
+
+        globals.declare("init_window", ValueType::Any);
+        globals.declare("close_window", ValueType::Any);
+        globals.declare("window_should_close", ValueType::Any);
+        globals.declare("begin_drawing", ValueType::Any);
+        globals.declare("end_drawing", ValueType::Any);
+        globals.declare("clear_background", ValueType::Any);
+        globals.declare("create_camera_3d", ValueType::Any);
+        globals.declare("begin_mode_3d", ValueType::Any);
+        globals.declare("end_mode_3d", ValueType::Any);
+        globals.declare("update_camera", ValueType::Any);
+        globals.declare("draw_sphere", ValueType::Any);
+        globals.declare("is_key_down", ValueType::Any);
+        globals.declare("is_key_pressed", ValueType::Any);
+        globals.declare("set_target_fps", ValueType::Any);
+        globals.declare("disable_cursor", ValueType::Any);
+        
+        globals.declare("create_particle_system", ValueType::Any);
+        globals.declare("update_particle_system", ValueType::Any);
+        globals.declare("draw_particle_system", ValueType::Any);
+        globals.declare("add_particles", ValueType::Any);
+        globals.declare("remove_particles", ValueType::Any);
+        
+        globals.declare("KEY_UP", ValueType::Any);
+        globals.declare("KEY_DOWN", ValueType::Any);
+        globals.declare("CAMERA_FREE", ValueType::Any);
+        globals.declare("CAMERA_PERSPECTIVE", ValueType::Any);
+        
         // Inject modules in VM
         register_stdlib(vm);
     }

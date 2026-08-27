@@ -272,4 +272,14 @@ std::any AstPrinter::visit(const ImportStmt& stmt)
     return "(import " + std::string(stmt.path.lexeme) + ")";
 }
 
+std::any AstPrinter::visit(const BreakStmt& /*stmt*/)
+{
+    return std::string("(break)");
+}
+
+std::any AstPrinter::visit(const ContinueStmt& /*stmt*/)
+{
+    return std::string("(continue)");
+}
+
 } // namespace blades

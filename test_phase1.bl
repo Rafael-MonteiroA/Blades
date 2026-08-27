@@ -1,0 +1,75 @@
+// test_phase1.bl — Phase 1 validation
+
+// 1. Modulo operator
+let a = 10 % 3;
+print("10 % 3 =", a);        // expect: 1
+
+// 2. Compound assignment
+let x = 10;
+x += 5;
+print("x += 5:", x);         // expect: 15
+x -= 3;
+print("x -= 3:", x);         // expect: 12
+x *= 2;
+print("x *= 2:", x);         // expect: 24
+x /= 4;
+print("x /= 4:", x);         // expect: 6
+x %= 4;
+print("x %= 4:", x);         // expect: 2
+
+// 3. Escape sequences
+print("tab:\there");          // expect: tab:	here
+print("newline in print");
+print("quote: \"hello\"");   // expect: quote: "hello"
+print("backslash: \\");       // expect: backslash: \
+
+// 4. && and || short-circuit
+let t = true;
+let f = false;
+print("true && false:", t && f);   // expect: false
+print("false || true:", f || t);   // expect: true
+print("true || false:", t || f);   // expect: true
+print("false && true:", f && t);   // expect: false
+
+// 5. String indexing
+let s = "hello";
+print("s[0]:", s[0]);        // expect: h
+print("s[4]:", s[4]);        // expect: o
+
+// 6. Break in loop
+print("break test:");
+for (let i = 0; i < 10; i = i + 1) {
+    if (i == 3) { break; }
+    print(i);
+}
+// expect: 0 1 2
+
+// 7. Continue in loop
+print("continue test:");
+for (let i = 0; i < 5; i = i + 1) {
+    if (i == 2) { continue; }
+    print(i);
+}
+// expect: 0 1 3 4
+
+// 8. While break
+print("while break test:");
+let n = 0;
+while (n < 10) {
+    if (n == 3) { break; }
+    print(n);
+    n += 1;
+}
+// expect: 0 1 2
+
+// 9. Nil literal
+let nothing = nil;
+print("nil:", nothing);      // expect: nil
+
+// 10. Multiline comment
+/* This is
+   a multiline
+   comment */
+print("comments work!");
+
+print("All tests passed!");

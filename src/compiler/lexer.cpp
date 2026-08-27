@@ -63,8 +63,29 @@ void Lexer::skip_whitespace()
             case '/':
                 if (peek_next() == '/')
                 {
-                    // A comment goes until the end of the line.
+                    // Single-line comment goes until the end of the line.
                     while (peek() != '\n' && !is_at_end()) advance();
+                }
+                else if (peek_next() == '*')
+                {
+                    // Multi-line comment /* ... */
+                    advance(); // consume '/'
+                    advance(); // consume '*'
+                    while (!is_at_end())
+                    {
+                        if (peek() == '\n')
+                        {
+                            m_line++;
+                            m_column = 0;
+                        }
+                        if (peek() == '*' && peek_next() == '/')
+                        {
+                            advance(); // consume '*'
+                            advance(); // consume '/'
+                            break;
+                        }
+                        advance();
+                    }
                 }
                 else
                 {
@@ -130,13 +151,27 @@ Token Lexer::next_token()
         case '.': return make_token(TokenType::Dot);
         case '-': 
             if (match('>')) return make_token(TokenType::Arrow);
+            if (match('=')) return make_token(TokenType::MinusEqual);
             return make_token(TokenType::Minus);
-        case '+': return make_token(TokenType::Plus);
-        case '/': return make_token(TokenType::Slash);
-        case '*': return make_token(TokenType::Star);
+        case '+':
+            if (match('=')) return make_token(TokenType::PlusEqual);
+            return make_token(TokenType::Plus);
+        case '/':
+            if (match('=')) return make_token(TokenType::SlashEqual);
+            return make_token(TokenType::Slash);
+        case '*':
+            if (match('=')) return make_token(TokenType::StarEqual);
+            return make_token(TokenType::Star);
+        case '%':
+            if (match('=')) return make_token(TokenType::PercentEqual);
+            return make_token(TokenType::Percent);
         case ':': return make_token(TokenType::Colon);
-        case '&': return make_token(TokenType::Ampersand);
-        case '|': return make_token(TokenType::Pipe);
+        case '&':
+            if (match('&')) return make_token(TokenType::AmpAmp);
+            return make_token(TokenType::Ampersand);
+        case '|':
+            if (match('|')) return make_token(TokenType::PipePipe);
+            return make_token(TokenType::Pipe);
         case '^': return make_token(TokenType::Caret);
         case '~': return make_token(TokenType::Tilde);
         case '!':
@@ -160,6 +195,12 @@ Token Lexer::string()
 {
     while (peek() != '"' && !is_at_end())
     {
+        if (peek() == '\\')
+        {
+            advance(); // consume backslash
+            if (!is_at_end()) advance(); // consume escaped char
+            continue;
+        }
         if (peek() == '\n') 
         {
             m_line++;
@@ -179,6 +220,12 @@ Token Lexer::fstring()
 {
     while (peek() != '"' && !is_at_end())
     {
+        if (peek() == '\\')
+        {
+            advance(); // consume backslash
+            if (!is_at_end()) advance(); // consume escaped char
+            continue;
+        }
         if (peek() == '\n') 
         {
             m_line++;
@@ -236,8 +283,30 @@ TokenType Lexer::identifier_type() const
     switch (c)
     {
         case 'a': return check_keyword(1, 2, "nd", TokenType::And);
-        case 'c': return check_keyword(1, 4, "lass", TokenType::Class);
-        case 'e': return check_keyword(1, 3, "lse", TokenType::Else);
+        case 'b': return check_keyword(1, 4, "reak", TokenType::Break);
+        case 'c':
+            if (m_current_offset - m_start_offset > 1) {
+                switch (m_source[m_start_offset + 1]) {
+                    case 'l': return check_keyword(2, 3, "ass", TokenType::Class);
+                    case 'o':
+                        if (m_current_offset - m_start_offset > 3) {
+                            switch (m_source[m_start_offset + 3]) {
+                                case 's': return check_keyword(2, 3, "nst", TokenType::Const);
+                                case 't': return check_keyword(2, 6, "ntinue", TokenType::Continue);
+                            }
+                        }
+                        return check_keyword(2, 3, "nst", TokenType::Const);
+                }
+            }
+            break;
+        case 'e':
+            if (m_current_offset - m_start_offset > 1) {
+                switch (m_source[m_start_offset + 1]) {
+                    case 'l': return check_keyword(2, 2, "se", TokenType::Else);
+                    case 'n': return check_keyword(2, 2, "um", TokenType::Enum);
+                }
+            }
+            break;
         case 'f':
             if (m_current_offset - m_start_offset > 1) {
                 switch (m_source[m_start_offset + 1]) {
@@ -252,11 +321,13 @@ TokenType Lexer::identifier_type() const
                 switch (m_source[m_start_offset + 1]) {
                     case 'f': return check_keyword(2, 0, "", TokenType::If);
                     case 'm': return check_keyword(2, 4, "port", TokenType::Import);
+                    case 'n': return check_keyword(2, 0, "", TokenType::In);
                 }
             }
             break;
         case 'l': return check_keyword(1, 2, "et", TokenType::Let);
         case 'm': return check_keyword(1, 4, "atch", TokenType::Match);
+        case 'n': return check_keyword(1, 2, "il", TokenType::Nil);
         case 'o': return check_keyword(1, 1, "r", TokenType::Or);
         case 'r': return check_keyword(1, 5, "eturn", TokenType::Return);
         case 's':

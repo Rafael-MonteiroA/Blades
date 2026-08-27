@@ -34,46 +34,117 @@ std::shared_ptr<ObjFunction> IRGenerator::generate(const std::vector<std::unique
 
 std::any IRGenerator::visit(const LiteralExpr& expr)
 {
-    Value val;
-    if (expr.value.type == TokenType::Integer) val = Value(std::stoi(std::string(expr.value.lexeme)));
-    else if (expr.value.type == TokenType::Float) val = Value(std::stod(std::string(expr.value.lexeme)));
-    else if (expr.value.type == TokenType::True) val = Value(true);
-    else if (expr.value.type == TokenType::False) val = Value(false);
+    if (expr.value.type == TokenType::Integer)
+    {
+        emit_constant(Value(static_cast<int64_t>(std::stoll(std::string(expr.value.lexeme)))), expr.value.span.start.line);
+    }
+    else if (expr.value.type == TokenType::Float)
+    {
+        emit_constant(Value(std::stod(std::string(expr.value.lexeme))), expr.value.span.start.line);
+    }
+    else if (expr.value.type == TokenType::True)
+    {
+        emit_constant(Value(true), expr.value.span.start.line);
+    }
+    else if (expr.value.type == TokenType::False)
+    {
+        emit_constant(Value(false), expr.value.span.start.line);
+    }
+    else if (expr.value.type == TokenType::Nil)
+    {
+        emit_constant(Value(Nil{}), expr.value.span.start.line);
+    }
     else if (expr.value.type == TokenType::String)
     {
         std::string s(expr.value.lexeme);
-        if (s.length() >= 2 && s.front() == '"' && s.back() == '"') s = s.substr(1, s.length() - 2);
-        val = Value(s);
+        // Strip surrounding quotes
+        if (s.length() >= 2 && s.front() == '"' && s.back() == '"')
+            s = s.substr(1, s.length() - 2);
+        // Process escape sequences
+        std::string result;
+        result.reserve(s.size());
+        for (size_t i = 0; i < s.size(); ++i)
+        {
+            if (s[i] == '\\' && i + 1 < s.size())
+            {
+                switch (s[i + 1])
+                {
+                    case 'n':  result += '\n'; ++i; break;
+                    case 't':  result += '\t'; ++i; break;
+                    case 'r':  result += '\r'; ++i; break;
+                    case '\\': result += '\\'; ++i; break;
+                    case '"':  result += '"';  ++i; break;
+                    case '0':  result += '\0'; ++i; break;
+                    default:
+                        result += s[i]; // keep backslash for unknown sequences
+                        break;
+                }
+            }
+            else
+            {
+                result += s[i];
+            }
+        }
+        emit_constant(Value(std::move(result)), expr.value.span.start.line);
     }
-    else val = Value(Nil{});
-
-    u32 index = make_constant(std::move(val));
-    emit(OpCode::Constant, index, expr.value.span.start.line);
     return std::any();
 }
 
 std::any IRGenerator::visit(const BinaryExpr& expr)
 {
+    u32 line = expr.op.span.start.line;
+
+    // Short-circuit: `and` / `&&`
+    // Semantics: evaluate left; if falsy, result is left (falsy); else result is right.
+    // JumpIfFalse always pops, so we Dup left first to preserve it on the short-circuit path.
+    if (expr.op.type == TokenType::And || expr.op.type == TokenType::AmpAmp)
+    {
+        expr.left->accept(*this);
+        emit(OpCode::Dup, line);           // stack: [left, left]
+        u32 false_jump = emit_jump(OpCode::JumpIfFalse, line); // pops top copy; if falsy jumps
+        // Left was truthy: the duplicate was popped by JumpIfFalse, original left remains
+        emit(OpCode::Pop, line);           // pop original left, will be replaced by right
+        expr.right->accept(*this);         // stack: [right]
+        patch_jump(false_jump);            // falsy path lands here with original left still on stack
+        return std::any();
+    }
+
+    // Short-circuit: `or` / `||`
+    // Semantics: evaluate left; if truthy, result is left (truthy); else result is right.
+    if (expr.op.type == TokenType::Or || expr.op.type == TokenType::PipePipe)
+    {
+        expr.left->accept(*this);
+        emit(OpCode::Dup, line);           // stack: [left, left]
+        u32 false_jump = emit_jump(OpCode::JumpIfFalse, line); // pops top; if falsy jumps to else
+        // Left was truthy: duplicate popped, original left is result — jump to end
+        u32 end_jump = emit_jump(OpCode::Jump, line);
+        patch_jump(false_jump);            // left was falsy: original left still on stack
+        emit(OpCode::Pop, line);           // pop the falsy left
+        expr.right->accept(*this);         // stack: [right]
+        patch_jump(end_jump);
+        return std::any();
+    }
+
     expr.left->accept(*this);
     expr.right->accept(*this);
-    
-    u32 line = expr.op.span.start.line;
+
     switch (expr.op.type)
     {
-        case TokenType::Plus:         emit(OpCode::Add, line); break;
-        case TokenType::Minus:        emit(OpCode::Subtract, line); break;
-        case TokenType::Star:         emit(OpCode::Multiply, line); break;
-        case TokenType::Slash:        emit(OpCode::Divide, line); break;
-        case TokenType::EqualEqual:   emit(OpCode::Equal, line); break;
-        case TokenType::BangEqual:    emit(OpCode::NotEqual, line); break;
-        case TokenType::Greater:      emit(OpCode::Greater, line); break;
-        case TokenType::GreaterEqual: emit(OpCode::GreaterEqual, line); break;
-        case TokenType::Less:         emit(OpCode::Less, line); break;
-        case TokenType::LessEqual:    emit(OpCode::LessEqual, line); break;
-        case TokenType::Ampersand:    emit(OpCode::BitAnd, line); break;
-        case TokenType::Pipe:         emit(OpCode::BitOr, line); break;
-        case TokenType::Caret:        emit(OpCode::BitXor, line); break;
-        case TokenType::LessLess:     emit(OpCode::ShiftLeft, line); break;
+        case TokenType::Plus:           emit(OpCode::Add, line); break;
+        case TokenType::Minus:          emit(OpCode::Subtract, line); break;
+        case TokenType::Star:           emit(OpCode::Multiply, line); break;
+        case TokenType::Slash:          emit(OpCode::Divide, line); break;
+        case TokenType::Percent:        emit(OpCode::Modulo, line); break;
+        case TokenType::EqualEqual:     emit(OpCode::Equal, line); break;
+        case TokenType::BangEqual:      emit(OpCode::NotEqual, line); break;
+        case TokenType::Greater:        emit(OpCode::Greater, line); break;
+        case TokenType::GreaterEqual:   emit(OpCode::GreaterEqual, line); break;
+        case TokenType::Less:           emit(OpCode::Less, line); break;
+        case TokenType::LessEqual:      emit(OpCode::LessEqual, line); break;
+        case TokenType::Ampersand:      emit(OpCode::BitAnd, line); break;
+        case TokenType::Pipe:           emit(OpCode::BitOr, line); break;
+        case TokenType::Caret:          emit(OpCode::BitXor, line); break;
+        case TokenType::LessLess:       emit(OpCode::ShiftLeft, line); break;
         case TokenType::GreaterGreater: emit(OpCode::ShiftRight, line); break;
         default: break;
     }
@@ -288,47 +359,87 @@ std::any IRGenerator::visit(const WhileStmt& stmt)
 {
     u32 loop_start = static_cast<u32>(current_chunk()->code.size());
     stmt.condition->accept(*this);
-    
+
     u32 line = 0;
     u32 exit_jump = emit_jump(OpCode::JumpIfFalse, line);
-    
+
+    // Push loop context so break/continue know where they are
+    m_loop_stack.push_back(LoopContext{loop_start, {}, current()->scope_depth});
+
     stmt.body->accept(*this);
     emit_loop(loop_start, line);
     patch_jump(exit_jump);
-    
+
+    // Patch all break jumps to land here (after exit_jump patch)
+    LoopContext ctx = std::move(m_loop_stack.back());
+    m_loop_stack.pop_back();
+    for (u32 jump_idx : ctx.break_jumps)
+    {
+        patch_jump(jump_idx);
+    }
+
     return std::any();
 }
 
 std::any IRGenerator::visit(const ForStmt& stmt)
 {
     current()->scope_depth++;
-    
+
     if (stmt.initializer) stmt.initializer->accept(*this);
-    
+
     u32 loop_start = static_cast<u32>(current_chunk()->code.size());
-    
+
     u32 exit_jump = 0;
-    if (stmt.condition)
+    bool has_condition = (stmt.condition != nullptr);
+    if (has_condition)
     {
         stmt.condition->accept(*this);
         exit_jump = emit_jump(OpCode::JumpIfFalse, 0);
     }
-    
-    stmt.body->accept(*this);
-    
+
+    // Body is compiled inside loop context; continue should jump to increment
+    // We'll record the body start first, then patch continue offsets after body.
+    // For simplicity: push context with loop_start pointing to the condition
+    // (continue will jump back to condition recheck, then increment runs via Loop).
+    // A cleaner approach: emit body, then increment, then Loop.
+    // We jump past the increment if needed, execute body, fall through to increment.
+
+    // Jump past increment to body
+    u32 body_jump = emit_jump(OpCode::Jump, 0);
+
+    // Increment section — continue lands here
+    u32 increment_start = static_cast<u32>(current_chunk()->code.size());
     if (stmt.increment)
     {
         stmt.increment->accept(*this);
-        emit(OpCode::Pop, 0, 0); // Pop expression result
+        emit(OpCode::Pop, 0, 0);
     }
-    
     emit_loop(loop_start, 0);
-    
-    if (stmt.condition)
+
+    // Body section
+    patch_jump(body_jump);
+
+    m_loop_stack.push_back(LoopContext{increment_start, {}, current()->scope_depth});
+
+    stmt.body->accept(*this);
+
+    // After body, jump to increment
+    emit_loop(increment_start, 0);
+
+    // Patch exit
+    if (has_condition)
     {
         patch_jump(exit_jump);
     }
-    
+
+    // Patch break jumps
+    LoopContext ctx = std::move(m_loop_stack.back());
+    m_loop_stack.pop_back();
+    for (u32 jump_idx : ctx.break_jumps)
+    {
+        patch_jump(jump_idx);
+    }
+
     current()->scope_depth--;
     while (!current()->locals.empty() && current()->locals.back().depth > current()->scope_depth)
     {
@@ -339,7 +450,7 @@ std::any IRGenerator::visit(const ForStmt& stmt)
         }
         current()->locals.pop_back();
     }
-    
+
     return std::any();
 }
 
@@ -554,43 +665,200 @@ std::any IRGenerator::visit(const YieldExpr& expr)
 
 std::any IRGenerator::visit(const MatchExpr& expr)
 {
+    // Strategy:
+    //   1. Evaluate match value — stays on stack throughout.
+    //   2. For each arm:
+    //      a. Non-default: test or-patterns. On any match -> pop match val, run body, push result, jump to end.
+    //         On ALL patterns miss -> fall through to next arm.
+    //      b. Default (_) arm: pop match value, run body, push result, jump to end.
+    //   3. If no arm matched: pop match value, push nil.
+    //   4. All end_jumps land AFTER the nil push (so there's always 1 result on stack).
+    //
+    // IMPORTANT: body_block arms do NOT push a value; we push nil for them.
+    //            body_expr arms push their expression result.
+
     expr.value->accept(*this);
     u32 line = expr.keyword.span.start.line;
     
+    // Pre-compute the nil constant index once
+    u32 nil_idx = make_constant(Value(Nil{}));
+
+    // end_jumps: all Jump instructions that need to be patched to after the whole match.
     std::vector<u32> end_jumps;
     
-    for (const auto& arm : expr.arms)
-    {
-        if (arm.pattern)
+    // Helper lambda: emit body and ensure a value is left on the stack
+    auto emit_body = [&](const MatchArm& arm) {
+        if (arm.body_block)
         {
-            emit(OpCode::Dup, line);
-            arm.pattern->accept(*this);
-            emit(OpCode::Equal, line);
-            
-            u32 jump_if_false = emit_jump(OpCode::JumpIfFalse, line);
-            
-            // Match successful: pop the original match value and execute body
-            emit(OpCode::Pop, line);
-            arm.body->accept(*this);
-            end_jumps.push_back(emit_jump(OpCode::Jump, line));
-            
-            // Patch for next arm
-            patch_jump(jump_if_false);
+            arm.body_block->accept(*this);
+            // Block doesn't push a value — push nil as the match result
+            emit(OpCode::Constant, nil_idx, line);
+        }
+        else if (arm.body_expr)
+        {
+            arm.body_expr->accept(*this);
+            // Expression result is already on the stack
         }
         else
         {
-            // Default arm '_'
-            emit(OpCode::Pop, line);
-            arm.body->accept(*this);
-            end_jumps.push_back(emit_jump(OpCode::Jump, line));
+            // Empty arm (shouldn't happen) — push nil
+            emit(OpCode::Constant, nil_idx, line);
+        }
+    };
+    
+    for (const auto& arm : expr.arms)
+    {
+        if (arm.is_default())
+        {
+            // Default arm: pop match value, run body (with result), jump to end.
+            if (arm.guard)
+            {
+                // Guard on default: if guard false -> fall through to "no match" case
+                arm.guard->accept(*this);
+                u32 guard_fail = emit_jump(OpCode::JumpIfFalse, line);
+                emit(OpCode::Pop, line); // pop match value
+                emit_body(arm);
+                end_jumps.push_back(emit_jump(OpCode::Jump, line));
+                patch_jump(guard_fail);
+            }
+            else
+            {
+                emit(OpCode::Pop, line); // pop match value
+                emit_body(arm);
+                end_jumps.push_back(emit_jump(OpCode::Jump, line));
+            }
+        }
+        else
+        {
+            // Non-default arm with or-patterns [p1, p2, ..., pN].
+            // Algorithm:
+            //   For each pattern pi (except last):
+            //     Dup, pi, Equal
+            //     JumpIfFalse -> try_next_pi  (miss this pattern)
+            //     Jump -> body_label           (hit! go to body)
+            //     try_next_pi:
+            //   For last pattern pN:
+            //     Dup, pN, Equal
+            //     JumpIfFalse -> next_arm_label (miss all patterns)
+            //   body_label:
+            //     [optional guard: if guard fails -> next_arm_label]
+            //     Pop (match value), run body, push result, Jump end
+            //   next_arm_label:
+
+            std::vector<u32> to_body_jumps; // all "hit" jumps pointing to body
+            u32 to_next_arm = 0;            // "miss all" jump pointing to next arm
+            
+            size_t n = arm.patterns.size();
+            for (size_t pi = 0; pi < n; ++pi)
+            {
+                emit(OpCode::Dup, line);
+                arm.patterns[pi]->accept(*this);
+                emit(OpCode::Equal, line);
+                
+                if (pi + 1 < n)
+                {
+                    // Not the last pattern: JumpIfFalse -> try next; Jump -> body
+                    u32 miss = emit_jump(OpCode::JumpIfFalse, line);
+                    to_body_jumps.push_back(emit_jump(OpCode::Jump, line));
+                    patch_jump(miss); // miss this pattern: continue to next
+                }
+                else
+                {
+                    // Last pattern: JumpIfFalse -> next arm (miss all)
+                    to_next_arm = emit_jump(OpCode::JumpIfFalse, line);
+                }
+            }
+            
+            // Patch all "hit" jumps to here (body start)
+            for (u32 j : to_body_jumps)
+                patch_jump(j);
+            
+            // Optional guard
+            if (arm.guard)
+            {
+                arm.guard->accept(*this);
+                // If guard fails, jump to next arm
+                u32 guard_fail = emit_jump(OpCode::JumpIfFalse, line);
+                
+                // Guard passed: pop match value, run body (with result), jump to end
+                emit(OpCode::Pop, line);
+                emit_body(arm);
+                end_jumps.push_back(emit_jump(OpCode::Jump, line));
+                
+                // Guard failed or pattern missed: land here -> next arm
+                patch_jump(guard_fail);
+                patch_jump(to_next_arm);
+            }
+            else
+            {
+                // No guard: pop match value, run body (with result), jump to end
+                emit(OpCode::Pop, line);
+                emit_body(arm);
+                end_jumps.push_back(emit_jump(OpCode::Jump, line));
+                
+                // All patterns missed: land here -> next arm
+                patch_jump(to_next_arm);
+            }
         }
     }
     
-    for (u32 jump : end_jumps)
-    {
-        patch_jump(jump);
-    }
+    // No arm matched (or no default arm): pop match value, push nil as result.
+    emit(OpCode::Pop, line);
+    emit(OpCode::Constant, nil_idx, line);
     
+    // All arm bodies jump here (past the fallback nil push)
+    for (u32 jump : end_jumps)
+        patch_jump(jump);
+    
+    return std::any();
+}
+std::any IRGenerator::visit(const BreakStmt& stmt)
+{
+    if (m_loop_stack.empty())
+    {
+        // Validated by parser, but guard anyway
+        return std::any();
+    }
+    // Pop any locals introduced since the loop started
+    auto& ctx = m_loop_stack.back();
+    int locals_to_pop = 0;
+    for (int i = static_cast<int>(current()->locals.size()) - 1; i >= 0; --i)
+    {
+        if (current()->locals[i].depth > ctx.scope_depth)
+            ++locals_to_pop;
+        else
+            break;
+    }
+    for (int i = 0; i < locals_to_pop; ++i)
+        emit(OpCode::Pop, stmt.keyword.span.start.line);
+
+    // Emit a jump placeholder; record it so the loop can patch it
+    u32 jump_idx = emit_jump(OpCode::Jump, stmt.keyword.span.start.line);
+    m_loop_stack.back().break_jumps.push_back(jump_idx);
+    return std::any();
+}
+
+std::any IRGenerator::visit(const ContinueStmt& stmt)
+{
+    if (m_loop_stack.empty())
+    {
+        return std::any();
+    }
+    auto& ctx = m_loop_stack.back();
+    // Pop any locals introduced since loop entry
+    int locals_to_pop = 0;
+    for (int i = static_cast<int>(current()->locals.size()) - 1; i >= 0; --i)
+    {
+        if (current()->locals[i].depth > ctx.scope_depth)
+            ++locals_to_pop;
+        else
+            break;
+    }
+    for (int i = 0; i < locals_to_pop; ++i)
+        emit(OpCode::Pop, stmt.keyword.span.start.line);
+
+    // Loop back to loop_start (increment section for for-loops, condition for while)
+    emit_loop(ctx.loop_start, stmt.keyword.span.start.line);
     return std::any();
 }
 

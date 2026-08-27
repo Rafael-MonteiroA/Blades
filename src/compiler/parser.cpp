@@ -200,7 +200,7 @@ std::unique_ptr<Stmt> Parser::declaration()
         if (match(TokenType::Import)) return import_statement();
         if (match(TokenType::Class)) return class_declaration();
         if (match(TokenType::Fn)) return fn_declaration("function");
-        if (match(TokenType::Let)) return let_declaration();
+        if (match(TokenType::Let) || match(TokenType::Const)) return let_declaration();
         return statement();
     }
     catch (const ParseError&)
@@ -302,6 +302,8 @@ std::unique_ptr<Stmt> Parser::statement()
 {
     if (match(TokenType::If)) return if_statement();
     if (match(TokenType::Return)) return return_statement();
+    if (match(TokenType::Break)) return break_statement();
+    if (match(TokenType::Continue)) return continue_statement();
     if (match(TokenType::While)) return while_statement();
     if (match(TokenType::For)) return for_statement();
     if (match(TokenType::LeftBrace)) return block_statement();
@@ -344,13 +346,38 @@ std::unique_ptr<Stmt> Parser::while_statement()
     consume(TokenType::LeftParen, "Expect '(' after 'while'.");
     auto condition = expression();
     consume(TokenType::RightParen, "Expect ')' after condition.");
+    m_loop_depth++;
     auto body = statement();
+    m_loop_depth--;
     
     return std::make_unique<WhileStmt>(std::move(condition), std::move(body));
 }
 
+std::unique_ptr<Stmt> Parser::break_statement()
+{
+    Token keyword = m_previous;
+    if (m_loop_depth == 0)
+    {
+        error("Cannot use 'break' outside of a loop.");
+    }
+    consume(TokenType::Semicolon, "Expect ';' after 'break'.");
+    return std::make_unique<BreakStmt>(std::move(keyword));
+}
+
+std::unique_ptr<Stmt> Parser::continue_statement()
+{
+    Token keyword = m_previous;
+    if (m_loop_depth == 0)
+    {
+        error("Cannot use 'continue' outside of a loop.");
+    }
+    consume(TokenType::Semicolon, "Expect ';' after 'continue'.");
+    return std::make_unique<ContinueStmt>(std::move(keyword));
+}
+
 std::unique_ptr<Stmt> Parser::for_statement()
 {
+    m_loop_depth++;
     consume(TokenType::LeftParen, "Expect '(' after 'for'.");
     
     std::unique_ptr<Stmt> initializer = nullptr;
@@ -382,6 +409,7 @@ std::unique_ptr<Stmt> Parser::for_statement()
     consume(TokenType::RightParen, "Expect ')' after for clauses.");
     
     auto body = statement();
+    m_loop_depth--;
     
     return std::make_unique<ForStmt>(std::move(initializer), std::move(condition), std::move(increment), std::move(body));
 }
@@ -439,25 +467,58 @@ std::unique_ptr<Expr> Parser::match_expression()
     std::vector<MatchArm> arms;
     while (!check(TokenType::RightBrace) && !check(TokenType::Eof))
     {
-        std::unique_ptr<Expr> pattern = nullptr;
+        std::vector<std::unique_ptr<Expr>> patterns;
+        
         if (match(TokenType::Underscore))
         {
-            // default fallback, pattern remains nullptr
+            // default fallback '_' — patterns list stays empty
         }
         else
         {
-            pattern = expression();
+            // Parse first pattern (use comparison-level to avoid consuming '|' as bitwise-or in complex exprs)
+            patterns.push_back(comparison());
+            
+            // Or-patterns: 1 | 2 | 3 — consume '|' as pattern separator
+            while (check(TokenType::Pipe) && !check(TokenType::FatArrow))
+            {
+                advance(); // consume '|'
+                if (check(TokenType::FatArrow))
+                {
+                    // Safety: stop if immediately followed by '=>'
+                    break;
+                }
+                patterns.push_back(comparison());
+            }
+        }
+        
+        // Optional guard: `if <condition>`
+        std::unique_ptr<Expr> guard = nullptr;
+        if (match(TokenType::If))
+        {
+            guard = expression();
         }
         
         consume(TokenType::FatArrow, "Expect '=>' after match pattern.");
         
-        auto body = expression();
-        arms.emplace_back(std::move(pattern), std::move(body));
+        // Body: either a block { ... } or an expression
+        std::unique_ptr<Expr> body_expr = nullptr;
+        std::unique_ptr<BlockStmt> body_block = nullptr;
         
-        if (!match(TokenType::Comma))
+        if (check(TokenType::LeftBrace))
         {
-            break;
+            advance(); // consume '{'
+            body_block = std::unique_ptr<BlockStmt>(
+                static_cast<BlockStmt*>(block_statement().release()));
         }
+        else
+        {
+            body_expr = expression();
+        }
+        
+        arms.emplace_back(std::move(patterns), std::move(body_expr), std::move(body_block), std::move(guard));
+        
+        // Optional trailing comma
+        match(TokenType::Comma);
     }
     
     consume(TokenType::RightBrace, "Expect '}' after match arms.");
@@ -498,13 +559,56 @@ std::unique_ptr<Expr> Parser::assignment()
         error("Invalid assignment target.");
     }
     
+    // Compound assignment operators: +=, -=, *=, /=, %=
+    if (match(TokenType::PlusEqual) || match(TokenType::MinusEqual) ||
+        match(TokenType::StarEqual) || match(TokenType::SlashEqual) ||
+        match(TokenType::PercentEqual))
+    {
+        Token compound_op = m_previous;
+        auto rhs = assignment();
+        
+        // Determine the binary operator
+        TokenType bin_op;
+        switch (compound_op.type)
+        {
+            case TokenType::PlusEqual:    bin_op = TokenType::Plus; break;
+            case TokenType::MinusEqual:   bin_op = TokenType::Minus; break;
+            case TokenType::StarEqual:    bin_op = TokenType::Star; break;
+            case TokenType::SlashEqual:   bin_op = TokenType::Slash; break;
+            case TokenType::PercentEqual: bin_op = TokenType::Percent; break;
+            default: bin_op = TokenType::Plus; break;
+        }
+        Token op_token = compound_op;
+        op_token.type = bin_op;
+        
+        if (auto* var_expr = dynamic_cast<VariableExpr*>(expr.get()))
+        {
+            // Desugar: x += expr  →  x = x + expr
+            auto var_read = std::make_unique<VariableExpr>(var_expr->name);
+            auto binary = std::make_unique<BinaryExpr>(std::move(var_read), op_token, std::move(rhs));
+            return std::make_unique<AssignExpr>(var_expr->name, std::move(binary));
+        }
+        else if (auto* sub_expr = dynamic_cast<SubscriptExpr*>(expr.get()))
+        {
+            // For subscript compound assignment, we need to read the value first
+            // This is complex — for now desugar to simple form
+            error("Compound assignment on subscript not yet supported.");
+        }
+        else if (auto* prop_expr = dynamic_cast<PropertyExpr*>(expr.get()))
+        {
+            error("Compound assignment on property not yet supported.");
+        }
+        
+        error("Invalid compound assignment target.");
+    }
+    
     return expr;
 }
 
 std::unique_ptr<Expr> Parser::logical_or()
 {
     auto expr = logical_and();
-    while (match(TokenType::Or))
+    while (match(TokenType::Or) || match(TokenType::PipePipe))
     {
         Token op = m_previous;
         auto right = logical_and();
@@ -516,7 +620,7 @@ std::unique_ptr<Expr> Parser::logical_or()
 std::unique_ptr<Expr> Parser::logical_and()
 {
     auto expr = bitwise_or();
-    while (match(TokenType::And))
+    while (match(TokenType::And) || match(TokenType::AmpAmp))
     {
         Token op = m_previous;
         auto right = bitwise_or();
@@ -622,7 +726,7 @@ std::unique_ptr<Expr> Parser::factor()
 {
     auto expr = unary();
     
-    while (match(TokenType::Slash) || match(TokenType::Star))
+    while (match(TokenType::Slash) || match(TokenType::Star) || match(TokenType::Percent))
     {
         Token op = m_previous;
         auto right = unary();
@@ -689,6 +793,7 @@ std::unique_ptr<Expr> Parser::primary()
 {
     if (match(TokenType::False)) return std::make_unique<LiteralExpr>(m_previous);
     if (match(TokenType::True)) return std::make_unique<LiteralExpr>(m_previous);
+    if (match(TokenType::Nil)) return std::make_unique<LiteralExpr>(m_previous);
     if (match(TokenType::Integer) || match(TokenType::Float) || match(TokenType::String))
     {
         return std::make_unique<LiteralExpr>(m_previous);

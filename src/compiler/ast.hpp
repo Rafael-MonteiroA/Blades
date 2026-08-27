@@ -46,6 +46,8 @@ class ReturnStmt;
 class FunctionDecl;
 class ClassDecl;
 class ImportStmt;
+class BreakStmt;
+class ContinueStmt;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AstVisitor
@@ -87,6 +89,8 @@ public:
     virtual std::any visit(const FunctionDecl& decl) = 0;
     virtual std::any visit(const ClassDecl& decl) = 0;
     virtual std::any visit(const ImportStmt& stmt) = 0;
+    virtual std::any visit(const BreakStmt& stmt) = 0;
+    virtual std::any visit(const ContinueStmt& stmt) = 0;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -107,7 +111,7 @@ public:
 class Expr : public AstNode
 {
 public:
-    ValueType resolved_type = ValueType::Unknown;
+    mutable ValueType resolved_type = ValueType::Unknown;
 };
 
 class LiteralExpr : public Expr
@@ -302,12 +306,27 @@ public:
 
 struct MatchArm
 {
-    // If pattern is nullptr, it represents the default '_' fallback
-    std::unique_ptr<Expr> pattern;
-    std::unique_ptr<Expr> body;
+    // patterns: list of patterns for this arm (or-patterns: 1 | 2 | 3)
+    // An empty patterns list represents the default '_' fallback
+    std::vector<std::unique_ptr<Expr>> patterns;
+    // body_expr: non-null for single-expression arms
+    std::unique_ptr<Expr> body_expr;
+    // body_block: non-null for block arms { ... }
+    std::unique_ptr<BlockStmt> body_block;
+    // guard: optional `if condition` guard
+    std::unique_ptr<Expr> guard;
+
+    // Constructor for expression body
+    MatchArm(std::vector<std::unique_ptr<Expr>> patterns,
+             std::unique_ptr<Expr> body_expr,
+             std::unique_ptr<BlockStmt> body_block,
+             std::unique_ptr<Expr> guard)
+        : patterns(std::move(patterns))
+        , body_expr(std::move(body_expr))
+        , body_block(std::move(body_block))
+        , guard(std::move(guard)) {}
     
-    MatchArm(std::unique_ptr<Expr> pattern, std::unique_ptr<Expr> body)
-        : pattern(std::move(pattern)), body(std::move(body)) {}
+    bool is_default() const { return patterns.empty(); }
 };
 
 class MatchExpr : public Expr
@@ -455,6 +474,24 @@ public:
     std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
 };
 
+class BreakStmt : public Stmt
+{
+public:
+    Token keyword;
+
+    explicit BreakStmt(Token keyword) : keyword(std::move(keyword)) {}
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
+class ContinueStmt : public Stmt
+{
+public:
+    Token keyword;
+
+    explicit ContinueStmt(Token keyword) : keyword(std::move(keyword)) {}
+    std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // AstPrinter — Helper to stringify the AST (mostly for tests)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -493,6 +530,8 @@ public:
     std::any visit(const FunctionDecl& decl) override;
     std::any visit(const ClassDecl& decl) override;
     std::any visit(const ImportStmt& stmt) override;
+    std::any visit(const BreakStmt& stmt) override;
+    std::any visit(const ContinueStmt& stmt) override;
 };
 
 } // namespace blades

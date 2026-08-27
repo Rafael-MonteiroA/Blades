@@ -13,10 +13,23 @@ enum class ValueType
 {
     Unknown, // For expressions that failed type checking or haven't been checked
     Void,    // For statements or functions that return nothing
+    Nil,     // Nil type
     Int,
     Float,
     Bool,
     String,
+    Array,
+    Dict,
+    Function,
+    Closure,
+    Class,
+    Instance,
+    NativeFn,
+    Vec2,
+    Vec3,
+    Color,
+    Fiber,
+    UserData,
     Any      // For dynamic/native functions
 };
 
