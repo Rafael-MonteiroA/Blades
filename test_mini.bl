@@ -1,5 +1,0 @@
-let c = "b";
-match(c) {
-    _ => { print("default"); }
-};
-print("fim");
