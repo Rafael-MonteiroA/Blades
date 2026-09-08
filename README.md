@@ -1,109 +1,143 @@
 <div align="center">
   <h1>🗡️ Blades</h1>
-  <p>Uma linguagem de scripting tipada, embutível e extensível, construída do zero em C++20.</p>
-  
+  <p>Linguagem de scripting tipada, embutível e extensível, construída em C++20.</p>
+
   ![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
   ![License](https://img.shields.io/badge/License-MIT-green.svg)
-  ![Status](https://img.shields.io/badge/Status-Stable-brightgreen.svg)
+  ![Version](https://img.shields.io/badge/Version-0.1.x-orange.svg)
 </div>
 
-## O que é a Blades?
+## Visão geral
 
-A **Blades** é uma linguagem de scripting embutível, compilada para bytecode e executada por uma Máquina Virtual (VM) própria. O núcleo pode ser compilado sem Raylib; os recursos gráficos e 3D são opcionais.
+A Blades é uma linguagem de propósito geral executada por uma VM própria de bytecode. Ela combina uma sintaxe familiar com tipagem progressiva, funções, closures, classes, coleções, imports e integração nativa em C++.
 
-O projeto foi construído inteiramente do zero, passando por todas as etapas fundamentais da criação de um compilador clássico: **Lexer**, **Parser**, **Análise Semântica (Type Checker)**, **Geração de Código (IR)** e uma **Máquina Virtual (Backend)**.
+O núcleo funciona sem Raylib. O módulo gráfico opcional adiciona janela, câmera livre, vetores, cores, desenho 3D e partículas para protótipos, visualizações e jogos.
 
-### ✨ Principais Recursos
+## Recursos atuais
 
-- **Sintaxe Familiar:** C-family (JS/Rust/Swift) para você não ter que reaprender a programar.
-- **Tipagem Progressivamente Segura:** Inferência local, anotações de tipos, assinaturas de funções e verificação de retornos.
-- **Máquina Virtual (VM) Rápida:** Baseada em execução de bytecode com base em stack (pilha).
-- **Sem Dependências Externas pesadas:** Escrito em C++20 moderno com `std::variant`, priorizando performance crua e segurança de memória.
-- **Interoperabilidade com C++:** Capacidade de injetar Funções Nativas do C++ dentro dos scripts nativamente de forma quase instantânea.
-- **Módulo 3D opcional:** Raylib, câmera, input, vetores, cores e simulações de partículas.
+- Lexer, parser recursivo e recuperação de erros de sintaxe.
+- Análise semântica com escopos, `let`, `const`, anotações de tipos e assinaturas de funções.
+- Tipos `int`, `float`, `number`, `bool`, `string`, `nil`, `array`, `dict`, `any` e objetos da VM.
+- Funções nomeadas, funções anônimas, closures, recursão e retorno tipado.
+- Classes, métodos, herança e `super`.
+- Arrays, dicionários, `match`, `for`, `while`, `break`, `continue` e `yield`.
+- Imports relativos ao arquivo que os utiliza.
+- REPL, verificação sem execução e disassembly do bytecode.
+- Funções nativas C++ e valores nativos com destrutor seguro.
+- Raylib opcional com câmera `CAMERA_FREE`, `draw_cube`, `draw_plane`, `draw_sphere` e sistema de partículas.
 
-## Exemplo de Código
+## Exemplo de linguagem
 
-```js
-// Orientação a Objetos
-class Pessoa {
-    fn init(n) { this.nome = n; }
-    fn falar() { print("Olá, eu sou ", this.nome); }
-}
+```blades
+const nome: string = "Blades";
 
-let p = Pessoa("Blades");
-p.falar();
-
-// Dicionários e Funções Recursivas
-let infos = { "versao": 1.0, "limites": [3, 5, 7] };
-
-fn fibonacci(n) {
+fn fibonacci(n: int) -> int {
     if (n <= 1) { return n; }
     return fibonacci(n - 1) + fibonacci(n - 2);
 }
 
-for (let i = 0; i < len(infos["limites"]); i = i + 1) {
-    print("Fibonacci(", infos["limites"][i], ") = ", fibonacci(infos["limites"][i]));
+for (let i: int = 0; i < 8; i = i + 1) {
+    print(nome, ": ", fibonacci(i));
 }
 ```
 
-## Arquitetura do Compilador
+## Exemplo 3D
 
-A compilação de um script `.bl` passa pelo seguinte pipeline interno:
+O arquivo [`examples/fps_table.bl`](examples/fps_table.bl) cria uma mesa usando cubos e plano, com navegação em primeira pessoa por teclado e mouse.
 
-1. `Lexer`: Lê o arquivo bruto e o transforma em Tokens.
-2. `Parser`: Constrói a Árvore Sintática Abstrata (AST) validando a gramática estrutural.
-3. `SemanticAnalyzer`: Vasculha a AST, resolve o escopo e as tipagens (Type Checking).
-4. `IRGenerator`: Converte a AST perfeitamente tipada num Bytecode linear (Opcodes).
-5. `VM`: Desempacota e executa as instruções no processador.
+Controles: `WASD` movimenta a câmera, o mouse altera a direção de visão e `ESC` fecha a janela.
 
-Para a documentação completa de sintaxe, consulte o [Manual da Linguagem](docs/language_spec.md).
+```blades
+let camera = create_camera_3d(
+    vec3(8.0, 5.5, 9.0),
+    vec3(0.0, 2.5, 0.0),
+    vec3(0.0, 1.0, 0.0),
+    60.0,
+    CAMERA_PERSPECTIVE
+);
 
-## Como Instalar e Rodar
+while (!window_should_close()) {
+    update_camera(camera, CAMERA_FREE);
+    begin_drawing();
+    begin_mode_3d(camera);
+    draw_cube(vec3(0, 3.4, 0), vec3(6, 0.45, 3.2), color(145, 82, 42, 255));
+    end_mode_3d();
+    end_drawing();
+}
+```
+
+## Compilação
 
 ### Requisitos
-- CMake ≥ 3.20
-- Compilador C++20 (MSVC 2019+, GCC 10+, Clang 12+)
 
-### Compilando o Projeto
+- CMake 3.20 ou superior.
+- Compilador com C++20: MSVC, GCC ou Clang.
+- Raylib 5.0 é baixada automaticamente apenas quando o módulo 3D está habilitado.
 
-No Windows usando PowerShell:
+### Windows com Visual Studio
+
 ```powershell
-cmake -B build -G "Visual Studio 17 2022"
+cmake -S . -B build -G "Visual Studio 17 2022" -DBLADES_ENABLE_RAYLIB=ON
 cmake --build build --config Debug
 ```
 
-Para compilar apenas o núcleo, sem baixar Raylib:
+### Linux, macOS ou MinGW
 
-```powershell
-cmake -B build-core -DBLADES_ENABLE_RAYLIB=OFF
-cmake --build build-core --config Debug
+```bash
+cmake -S . -B build -DBLADES_ENABLE_RAYLIB=ON
+cmake --build build
 ```
 
-### Usando a Linguagem
+Para compilar somente o núcleo, sem Raylib:
 
-O binário final gera ferramentas incríveis direto para o seu console:
+```bash
+cmake -S . -B build-core -DBLADES_ENABLE_RAYLIB=OFF
+cmake --build build-core
+```
+
+## Uso da CLI
+
+No Windows com Visual Studio:
 
 ```powershell
-# 1. Inicia o modo interativo (REPL) - Digite e veja os resultados na hora!
+# REPL interativo
 .\build\bin\Debug\blades.exe
 
-# 2. Executa um script escrito em um arquivo
-.\build\bin\Debug\blades.exe meu_codigo.bl
+# Executar um arquivo
+.\build\bin\Debug\blades.exe examples/hello.bl
 
-# 3. Verifica sintaxe e tipos sem executar efeitos colaterais
-.\build\bin\Debug\blades.exe --check meu_codigo.bl
+# Verificar sintaxe e tipos sem executar o programa
+.\build\bin\Debug\blades.exe --check examples/fps_table.bl
 
-# 4. Inspeciona o bytecode gerado para depuração
-.\build\bin\Debug\blades.exe --disassemble meu_codigo.bl
+# Exibir o bytecode gerado
+.\build\bin\Debug\blades.exe --disassemble examples/hello.bl
 
-# 5. Exemplo 3D com câmera livre (requer BLADES_ENABLE_RAYLIB=ON)
+# Executar o exemplo 3D
 .\build\bin\Debug\blades.exe examples/fps_table.bl
 ```
 
-## Como Contribuir
+Em builds Unix, substitua o caminho pelo binário gerado em `build/bin/blades` ou `build/blades`, conforme o gerador usado.
 
-Se sinta à vontade para abrir pull requests! 
-- Biblioteca padrão multiplataforma (`std.fs`, `std.json`, `std.collections`).
-- Language Server, formatter e debugger.
-- Backend WebAssembly/nativo usando uma IR independente da VM.
+## Organização do projeto
+
+```text
+src/                    compilador, VM e biblioteca nativa
+examples/               programas de exemplo
+docs/                   especificação, gramática e arquitetura
+tools/vscode-blades/    extensão de sintaxe e execução para VS Code
+```
+
+## Documentação
+
+- [Especificação da linguagem](docs/language_spec.md)
+- [Gramática](docs/grammar.md)
+- [Arquitetura](docs/architecture.md)
+- [Decisões de projeto](docs/design_decisions.md)
+
+## Contribuição
+
+Pull requests são bem-vindos. As próximas áreas planejadas incluem biblioteca padrão modular, namespaces, package manager, formatter, Language Server, debugger e backend WebAssembly.
+
+## Licença
+
+Este projeto está disponível sob a licença [MIT](LICENSE).
