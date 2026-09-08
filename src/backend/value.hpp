@@ -20,6 +20,12 @@ namespace blades
 // We use std::monostate to represent 'nil'
 using Nil = std::monostate;
 
+struct NativeError
+{
+    std::string message;
+    bool operator==(const NativeError& other) const { return message == other.message; }
+};
+
 struct Value;
 using NativeFn = Value(*)(const std::vector<Value>& args);
 
@@ -75,7 +81,13 @@ struct ObjBoundMethod;
 
 struct ObjUserData
 {
-    void* data;
+    void* data = nullptr;
+    void (*deleter)(void*) = nullptr;
+
+    ~ObjUserData()
+    {
+        if (deleter && data) deleter(data);
+    }
 };
 
 struct ObjVec2 { 
@@ -93,11 +105,12 @@ struct ObjColor {
 
 struct Value
 {
-    std::variant<Nil, int64_t, double, bool, std::string, NativeFn, std::shared_ptr<ObjFunction>, std::shared_ptr<ObjClosure>, std::shared_ptr<ObjArray>, std::shared_ptr<ObjDict>, std::shared_ptr<ObjClass>, std::shared_ptr<ObjInstance>, std::shared_ptr<ObjBoundMethod>, std::shared_ptr<ObjUserData>, std::shared_ptr<ObjFiber>, ObjVec2, ObjVec3, ObjColor> data;
+    std::variant<Nil, NativeError, int64_t, double, bool, std::string, NativeFn, std::shared_ptr<ObjFunction>, std::shared_ptr<ObjClosure>, std::shared_ptr<ObjArray>, std::shared_ptr<ObjDict>, std::shared_ptr<ObjClass>, std::shared_ptr<ObjInstance>, std::shared_ptr<ObjBoundMethod>, std::shared_ptr<ObjUserData>, std::shared_ptr<ObjFiber>, ObjVec2, ObjVec3, ObjColor> data;
 
     // Constructors
     Value() : data(Nil{}) {}
     Value(Nil n) : data(n) {}
+    Value(NativeError error) : data(std::move(error)) {}
     Value(int i) : data(static_cast<int64_t>(i)) {}
     Value(int64_t i) : data(i) {}
     Value(double d) : data(d) {}
@@ -120,6 +133,7 @@ struct Value
 
     // Type checking
     bool is_nil() const { return std::holds_alternative<Nil>(data); }
+    bool is_native_error() const { return std::holds_alternative<NativeError>(data); }
     bool is_int() const { return std::holds_alternative<int64_t>(data); }
     bool is_double() const { return std::holds_alternative<double>(data); }
     bool is_bool() const { return std::holds_alternative<bool>(data); }
@@ -141,6 +155,7 @@ struct Value
 
     // Extraction
     int64_t as_int() const { return std::get<int64_t>(data); }
+    const NativeError& as_native_error() const { return std::get<NativeError>(data); }
     double as_double() const { return std::get<double>(data); }
     bool as_bool() const { return std::get<bool>(data); }
     const std::string& as_string() const { return std::get<std::string>(data); }

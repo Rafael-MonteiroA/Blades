@@ -6,9 +6,16 @@
 #include <cmath>
 #include <fstream>
 #include <sstream>
+#ifdef BLADES_HAS_RAYLIB
 #include <raylib.h>
+#endif
 namespace blades
 {
+
+static Value native_error(const char* message)
+{
+    return Value(NativeError{message});
+}
 
 static Value stdlib_print(const std::vector<Value>& args)
 {
@@ -29,7 +36,7 @@ static Value stdlib_array_push(const std::vector<Value>& args)
         arr->elements.push_back(args[1]);
         return Value(Nil{});
     }
-    return Value(Nil{});
+    return native_error("array_push expects an array and a value.");
 }
 
 static Value stdlib_array_pop(const std::vector<Value>& args)
@@ -44,7 +51,7 @@ static Value stdlib_array_pop(const std::vector<Value>& args)
             return val;
         }
     }
-    return Value(Nil{});
+    return native_error("array_pop expects an array.");
 }
 
 static Value stdlib_clock(const std::vector<Value>& /*args*/)
@@ -88,7 +95,7 @@ static Value stdlib_random(const std::vector<Value>& args)
         return Value(dist(rng));
     }
     
-    return Value(Nil{}); // Should throw a runtime error in a robust implementation
+    return native_error("random expects no arguments or two integer bounds.");
 }
 
 static Value stdlib_input(const std::vector<Value>& args)
@@ -120,7 +127,7 @@ static Value stdlib_len(const std::vector<Value>& args)
         return Value(static_cast<int>(args[0].as_dict()->elements.size()));
     }
     
-    return Value(0);
+    return native_error("len expects a string, array, or dictionary.");
 }
 
 static Value stdlib_vec2(const std::vector<Value>& args)
@@ -149,43 +156,43 @@ static Value stdlib_color(const std::vector<Value>& args)
 
 static Value stdlib_sin(const std::vector<Value>& args)
 {
-    if (args.empty() || (!args[0].is_number())) return Value(0.0);
+    if (args.empty() || (!args[0].is_number())) return native_error("sin expects a number.");
     return Value(std::sin(args[0].as_number()));
 }
 
 static Value stdlib_cos(const std::vector<Value>& args)
 {
-    if (args.empty() || (!args[0].is_number())) return Value(0.0);
+    if (args.empty() || (!args[0].is_number())) return native_error("cos expects a number.");
     return Value(std::cos(args[0].as_number()));
 }
 
 static Value stdlib_tan(const std::vector<Value>& args)
 {
-    if (args.empty() || (!args[0].is_number())) return Value(0.0);
+    if (args.empty() || (!args[0].is_number())) return native_error("tan expects a number.");
     return Value(std::tan(args[0].as_number()));
 }
 
 static Value stdlib_sqrt(const std::vector<Value>& args)
 {
-    if (args.empty() || !args[0].is_number()) return Value(0.0);
+    if (args.empty() || !args[0].is_number()) return native_error("sqrt expects a number.");
     return Value(std::sqrt(args[0].as_number()));
 }
 
 static Value stdlib_abs(const std::vector<Value>& args)
 {
-    if (args.empty() || !args[0].is_number()) return Value(0.0);
+    if (args.empty() || !args[0].is_number()) return native_error("abs expects a number.");
     return Value(std::abs(args[0].as_number()));
 }
 
 static Value stdlib_pow(const std::vector<Value>& args)
 {
-    if (args.size() < 2 || !args[0].is_number() || !args[1].is_number()) return Value(0.0);
+    if (args.size() < 2 || !args[0].is_number() || !args[1].is_number()) return native_error("pow expects two numbers.");
     return Value(std::pow(args[0].as_number(), args[1].as_number()));
 }
 
 static Value stdlib_dot(const std::vector<Value>& args)
 {
-    if (args.size() < 2) return Value(0.0);
+    if (args.size() < 2) return native_error("dot expects two vectors.");
     if (args[0].is_vec3() && args[1].is_vec3())
     {
         return Value((double)(args[0].as_vec3().x * args[1].as_vec3().x + 
@@ -197,14 +204,14 @@ static Value stdlib_dot(const std::vector<Value>& args)
         return Value((double)(args[0].as_vec2().x * args[1].as_vec2().x + 
                               args[0].as_vec2().y * args[1].as_vec2().y));
     }
-    return Value(0.0);
+    return native_error("dot expects two Vec2 values or two Vec3 values.");
 }
 
 static Value stdlib_read_text(const std::vector<Value>& args)
 {
-    if (args.empty() || !args[0].is_string()) return Value("");
+    if (args.empty() || !args[0].is_string()) return native_error("read_text expects a path string.");
     std::ifstream file(args[0].as_string());
-    if (!file.is_open()) return Value("");
+    if (!file.is_open()) return native_error("read_text could not open the file.");
     std::stringstream buffer;
     buffer << file.rdbuf();
     return Value(buffer.str());
@@ -212,9 +219,9 @@ static Value stdlib_read_text(const std::vector<Value>& args)
 
 static Value stdlib_write_text(const std::vector<Value>& args)
 {
-    if (args.size() < 2 || !args[0].is_string() || !args[1].is_string()) return Value(false);
+    if (args.size() < 2 || !args[0].is_string() || !args[1].is_string()) return native_error("write_text expects a path and string contents.");
     std::ofstream file(args[0].as_string());
-    if (!file.is_open()) return Value(false);
+    if (!file.is_open()) return native_error("write_text could not open the file.");
     file << args[1].as_string();
     return Value(true);
 }
@@ -252,6 +259,7 @@ static Value stdlib_get_fake_body_x(const std::vector<Value>& args)
 }
 // ------------------------------------------
 
+#ifdef BLADES_HAS_RAYLIB
 // ---------------- RAYLIB BINDINGS ----------------
 static Value stdlib_init_window(const std::vector<Value>& args)
 {
@@ -311,7 +319,8 @@ static Value stdlib_create_camera_3d(const std::vector<Value>& args)
     cam->fovy = (float)args[3].as_number();
     cam->projection = (int)args[4].as_number();
     auto ud = std::make_shared<ObjUserData>();
-    ud->data = cam; // We leak this, but it's okay for a script engine or we can manage it later
+    ud->data = cam;
+    ud->deleter = [](void* data) { delete static_cast<Camera3D*>(data); };
     return Value(ud);
 }
 
@@ -345,6 +354,32 @@ static Value stdlib_draw_sphere(const std::vector<Value>& args)
     float r = (float)args[1].as_number();
     ObjColor c = args[2].as_color();
     DrawSphere({ p.x, p.y, p.z }, r, { c.r, c.g, c.b, c.a });
+    return Value(true);
+}
+
+static Value stdlib_draw_cube(const std::vector<Value>& args)
+{
+    if (args.size() < 3 || !args[0].is_vec3() || !args[1].is_vec3() || !args[2].is_color())
+        return Value(false);
+
+    ObjVec3 position = args[0].as_vec3();
+    ObjVec3 size = args[1].as_vec3();
+    ObjColor c = args[2].as_color();
+    DrawCube({ position.x, position.y, position.z }, size.x, size.y, size.z,
+              { c.r, c.g, c.b, c.a });
+    return Value(true);
+}
+
+static Value stdlib_draw_plane(const std::vector<Value>& args)
+{
+    if (args.size() < 3 || !args[0].is_vec3() || !args[1].is_vec2() || !args[2].is_color())
+        return Value(false);
+
+    ObjVec3 position = args[0].as_vec3();
+    ObjVec2 size = args[1].as_vec2();
+    ObjColor c = args[2].as_color();
+    DrawPlane({ position.x, position.y, position.z }, { size.x, size.y },
+              { c.r, c.g, c.b, c.a });
     return Value(true);
 }
 
@@ -416,8 +451,9 @@ struct NativeParticleSystem {
 };
 
 static Value stdlib_create_particle_system(const std::vector<Value>& args) {
-    if (args.size() < 3 || !args[0].is_number()) return Value(Nil{});
+    if (args.size() < 3 || !args[0].is_number() || !args[1].is_number() || !args[2].is_number()) return Value(Nil{});
     int count = (int)args[0].as_number();
+    if (count < 0) return Value(Nil{});
     float G = (float)args[1].as_number();
     float mass = (float)args[2].as_number();
     
@@ -428,6 +464,7 @@ static Value stdlib_create_particle_system(const std::vector<Value>& args) {
     }
     auto ud = std::make_shared<ObjUserData>();
     ud->data = sys;
+    ud->deleter = [](void* data) { delete static_cast<NativeParticleSystem*>(data); };
     return Value(ud);
 }
 
@@ -446,7 +483,7 @@ static Value stdlib_update_particle_system(const std::vector<Value>& args) {
         float dist_sq = dx*dx + dy*dy + dz*dz;
         float dist = std::sqrt(dist_sq);
         
-        if (dist < event_horizon + 1.0f) {
+        if (dist < event_horizon + 1.0f || dist_sq <= 0.000001f) {
             p = sys->spawn_particle(G, mass);
         } else {
             float force_mag = (G * mass) / dist_sq;
@@ -477,7 +514,7 @@ static Value stdlib_draw_particle_system(const std::vector<Value>& args) {
 }
 
 static Value stdlib_add_particles(const std::vector<Value>& args) {
-    if (args.size() < 3 || !args[0].is_user_data()) return Value(false);
+    if (args.size() < 4 || !args[0].is_user_data()) return Value(false);
     auto sys = static_cast<NativeParticleSystem*>(args[0].as_user_data()->data);
     int count = (int)args[1].as_number();
     float G = (float)args[2].as_number();
@@ -500,6 +537,7 @@ static Value stdlib_remove_particles(const std::vector<Value>& args) {
     return Value(true);
 }
 // ------------------------------------------------
+#endif
 
 void register_stdlib(VM& vm)
 {
@@ -535,7 +573,8 @@ void register_stdlib(VM& vm)
     vm.define_native("array_push", stdlib_array_push);
     vm.define_native("array_pop", stdlib_array_pop);
 
-    // Raylib
+    // Raylib and its native particle module are optional.
+#ifdef BLADES_HAS_RAYLIB
     vm.define_native("init_window", stdlib_init_window);
     vm.define_native("close_window", stdlib_close_window);
     vm.define_native("window_should_close", stdlib_window_should_close);
@@ -547,6 +586,8 @@ void register_stdlib(VM& vm)
     vm.define_native("end_mode_3d", stdlib_end_mode_3d);
     vm.define_native("update_camera", stdlib_update_camera);
     vm.define_native("draw_sphere", stdlib_draw_sphere);
+    vm.define_native("draw_cube", stdlib_draw_cube);
+    vm.define_native("draw_plane", stdlib_draw_plane);
     vm.define_native("is_key_down", stdlib_is_key_down);
     vm.define_native("is_key_pressed", stdlib_is_key_pressed);
     vm.define_native("set_target_fps", stdlib_set_target_fps);
@@ -560,10 +601,11 @@ void register_stdlib(VM& vm)
     vm.define_native("remove_particles", stdlib_remove_particles);
 
     // Raylib constants
-    vm.define_native("KEY_UP", [](const std::vector<Value>&){ return Value(265); });
-    vm.define_native("KEY_DOWN", [](const std::vector<Value>&){ return Value(264); });
-    vm.define_native("CAMERA_FREE", [](const std::vector<Value>&){ return Value(4); }); // CAMERA_FREE enum from raylib
-    vm.define_native("CAMERA_PERSPECTIVE", [](const std::vector<Value>&){ return Value(0); });
+    vm.define_global("KEY_UP", Value(265));
+    vm.define_global("KEY_DOWN", Value(264));
+    vm.define_global("CAMERA_FREE", Value(4)); // CAMERA_FREE enum from raylib
+    vm.define_global("CAMERA_PERSPECTIVE", Value(0));
+#endif
 }
 
 } // namespace blades

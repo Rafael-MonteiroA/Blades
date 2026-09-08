@@ -36,11 +36,15 @@
       "patterns": [
         {
           "name": "keyword.control.blades",
-          "match": "\\b(if|else|while|return)\\b"
+          "match": "\\b(if|else|while|for|return|break|continue|match|import|class|this|super)\\b"
         },
         {
           "name": "keyword.declaration.blades",
-          "match": "\\b(let|fn)\\b"
+          "match": "\\b(let|const|fn)\\b"
+        },
+        {
+          "name": "storage.type.blades",
+          "match": "\\b(int|i32|i64|float|f32|f64|double|number|bool|string|str|nil|unit|void|array|list|dict|map|any)\\b"
         },
         {
           "name": "constant.language.blades",

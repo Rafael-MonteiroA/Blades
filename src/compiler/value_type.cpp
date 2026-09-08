@@ -12,6 +12,7 @@ const char* to_string(ValueType type)
         case ValueType::Nil:      return "Nil";
         case ValueType::Int:      return "Int";
         case ValueType::Float:    return "Float";
+        case ValueType::Number:   return "Number";
         case ValueType::Bool:     return "Bool";
         case ValueType::String:   return "String";
         case ValueType::Array:    return "Array";

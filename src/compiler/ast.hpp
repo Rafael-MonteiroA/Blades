@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 #include <any>
+#include <optional>
 
 #include "compiler/token.hpp"
 #include "compiler/value_type.hpp"
@@ -48,6 +49,12 @@ class ClassDecl;
 class ImportStmt;
 class BreakStmt;
 class ContinueStmt;
+
+struct Parameter
+{
+    Token name;
+    std::optional<Token> type;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AstVisitor
@@ -281,10 +288,10 @@ public:
 class FnExpr : public Expr
 {
 public:
-    std::vector<Token> params;
+    std::vector<Parameter> params;
     std::unique_ptr<BlockStmt> body;
 
-    FnExpr(std::vector<Token> params, std::unique_ptr<BlockStmt> body)
+    FnExpr(std::vector<Parameter> params, std::unique_ptr<BlockStmt> body)
         : params(std::move(params)), body(std::move(body)) {}
     std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
 };
@@ -374,10 +381,15 @@ class LetStmt : public Stmt
 {
 public:
     Token name;
+    std::optional<Token> type;
     std::unique_ptr<Expr> initializer; // Can be null
+    bool is_const = false;
 
-    LetStmt(Token name, std::unique_ptr<Expr> initializer)
-        : name(std::move(name)), initializer(std::move(initializer)) {}
+    LetStmt(Token name,
+            std::optional<Token> type,
+            std::unique_ptr<Expr> initializer,
+            bool is_const = false)
+        : name(std::move(name)), type(std::move(type)), initializer(std::move(initializer)), is_const(is_const) {}
     std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
 };
 
@@ -443,11 +455,14 @@ class FunctionDecl : public Stmt
 {
 public:
     Token name;
-    std::vector<Token> params;
+    std::vector<Parameter> params;
+    std::optional<Token> return_type;
     std::unique_ptr<BlockStmt> body;
 
-    FunctionDecl(Token name, std::vector<Token> params, std::unique_ptr<BlockStmt> body)
-        : name(std::move(name)), params(std::move(params)), body(std::move(body)) {}
+    FunctionDecl(Token name, std::vector<Parameter> params, std::optional<Token> return_type,
+                 std::unique_ptr<BlockStmt> body)
+        : name(std::move(name)), params(std::move(params)), return_type(std::move(return_type)),
+          body(std::move(body)) {}
     std::any accept(AstVisitor& visitor) const override { return visitor.visit(*this); }
 };
 

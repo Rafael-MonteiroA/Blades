@@ -81,7 +81,9 @@ void VM::runtime_error(const char* message)
         u32 instruction = frame.ip > 0 ? frame.ip - 1 : 0;
         if (instruction < function->chunk.code.size())
         {
-            std::cerr << "[line " << function->chunk.code[instruction].source_line << "] in ";
+            std::cerr << "[";
+            if (!function->source_name.empty()) std::cerr << function->source_name << ':';
+            std::cerr << function->chunk.code[instruction].source_line << "] in ";
             if (function->name.empty()) std::cerr << "script\n";
             else std::cerr << function->name << "()\n";
         }
@@ -91,6 +93,11 @@ void VM::runtime_error(const char* message)
 void VM::define_native(const std::string& name, NativeFn function)
 {
     m_globals[name] = Value(function);
+}
+
+void VM::define_global(const std::string& name, Value value)
+{
+    m_globals[name] = std::move(value);
 }
 
 InterpretResult VM::interpret(std::shared_ptr<ObjFunction> function)
@@ -957,8 +964,21 @@ InterpretResult VM::run()
                     pop(); // Pop callee
                     
                     NativeFn native = callee.as_native_fn();
-                    Value result = native(args);
-                    push(result);
+                    try
+                    {
+                        Value result = native(args);
+                        if (result.is_native_error())
+                        {
+                            runtime_error(result.as_native_error().message.c_str());
+                            return InterpretResult::RuntimeError;
+                        }
+                        push(result);
+                    }
+                    catch (const std::exception& error)
+                    {
+                        runtime_error(error.what());
+                        return InterpretResult::RuntimeError;
+                    }
                 }
                 else if (callee.is_closure())
                 {
@@ -1027,6 +1047,12 @@ InterpretResult VM::run()
                     return InterpretResult::RuntimeError;
                 }
                 break;
+            }
+            case OpCode::Break:
+            case OpCode::Continue:
+            {
+                runtime_error("Invalid loop opcode in bytecode.");
+                return InterpretResult::RuntimeError;
             }
         }
     }

@@ -3,11 +3,13 @@
 namespace blades
 {
 
-std::shared_ptr<ObjFunction> IRGenerator::generate(const std::vector<std::unique_ptr<Stmt>>& statements)
+std::shared_ptr<ObjFunction> IRGenerator::generate(const std::vector<std::unique_ptr<Stmt>>& statements,
+                                                    std::string_view source_name)
 {
     auto top_level = std::make_unique<CompilerState>();
     top_level->function = std::make_shared<ObjFunction>();
     top_level->function->name = ""; // Script top-level
+    top_level->function->source_name = std::string(source_name);
     top_level->function->arity = 0;
     
     // Local 0 is reserved for the function itself
@@ -471,6 +473,7 @@ std::any IRGenerator::visit(const FunctionDecl& decl)
     auto new_state = std::make_unique<CompilerState>();
     new_state->function = std::make_shared<ObjFunction>();
     new_state->function->name = std::string(decl.name.lexeme);
+    new_state->function->source_name = current()->function->source_name;
     new_state->function->arity = static_cast<u32>(decl.params.size());
     
     // Local 0 is reserved for the function itself
@@ -480,7 +483,7 @@ std::any IRGenerator::visit(const FunctionDecl& decl)
     new_state->scope_depth = 1;
     for (const auto& param : decl.params)
     {
-        new_state->locals.push_back(Local{std::string(param.lexeme), 1});
+        new_state->locals.push_back(Local{std::string(param.name.lexeme), 1});
     }
     
     m_compiler_stack.push_back(std::move(new_state));
@@ -522,13 +525,14 @@ std::any IRGenerator::visit(const FnExpr& expr)
     auto new_state = std::make_unique<CompilerState>();
     new_state->function = std::make_shared<ObjFunction>();
     new_state->function->name = "";
+    new_state->function->source_name = current()->function->source_name;
     new_state->function->arity = static_cast<u32>(expr.params.size());
     
     new_state->locals.push_back(Local{"", 0});
     new_state->scope_depth = 1;
     for (const auto& param : expr.params)
     {
-        new_state->locals.push_back(Local{std::string(param.lexeme), 1});
+        new_state->locals.push_back(Local{std::string(param.name.lexeme), 1});
     }
     
     m_compiler_stack.push_back(std::move(new_state));
@@ -575,6 +579,7 @@ std::any IRGenerator::visit(const ClassDecl& decl)
         auto comp = std::make_unique<CompilerState>();
         comp->function = std::make_shared<ObjFunction>();
         comp->function->name = std::string(method->name.lexeme);
+        comp->function->source_name = current()->function->source_name;
         // The arity is params size. Note: 'this' is implicitly at slot 0 when called.
         comp->function->arity = static_cast<u32>(method->params.size());
         
@@ -585,7 +590,7 @@ std::any IRGenerator::visit(const ClassDecl& decl)
         current()->locals.push_back(Local{"this", current()->scope_depth});
         for (const auto& param : method->params)
         {
-            current()->locals.push_back(Local{std::string(param.lexeme), current()->scope_depth});
+            current()->locals.push_back(Local{std::string(param.name.lexeme), current()->scope_depth});
         }
         
         method->body->accept(*this);

@@ -1,0 +1,6 @@
+// Typed parameters are also accepted in anonymous functions.
+let add = fn(a: int, b: int) {
+    return a + b;
+};
+
+print(add(2, 3));

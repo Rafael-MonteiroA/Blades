@@ -1,94 +1,100 @@
-# Especificação da Linguagem Blades
+# Especificação atual da linguagem Blades
 
-A **Blades** é uma linguagem de programação procedural, estaticamente tipada, com sintaxe baseada na família C (JavaScript, Rust). Ela foi projetada para ser leve, embutível e executada através de uma Máquina Virtual (VM) de stack própria escrita em C++20.
+Este documento descreve a implementação atual da Blades 0.1.x. A linguagem é um scripting embutível, compilado para bytecode e executado por uma VM própria. Raylib e os recursos 3D são opcionais na build.
 
-## 1. Tipos de Dados (Primitivos)
+## Sintaxe
 
-A linguagem suporta nativamente os seguintes tipos de dados em tempo de execução:
-- **Int**: Números inteiros (64-bit). Exemplo: `10`, `-42`.
-- **Double**: Números de ponto flutuante (64-bit). Exemplo: `3.14`, `-0.5`.
-- **Bool**: Valores booleanos (`true` ou `false`).
-- **String**: Sequências de texto. Exemplo: `"Olá, Mundo!"`.
-- **Nil**: Representa a ausência de valor (nulo).
-- **NativeFn**: Ponteiros para funções injetadas via C++.
+A linguagem é case-sensitive e usa `;` para terminar instruções. Blocos usam `{}`. Há comentários `//` e `/* ... */`.
 
-> O Analisador Semântico trava o tipo de uma variável na declaração. Tentativas de mudar o tipo de uma variável posteriormente resultarão em erro de compilação.
-
-## 2. Sintaxe Básica
-
-A sintaxe é case-sensitive. Cada instrução deve terminar com ponto e vírgula (`;`). Blocos de código são delimitados por chaves (`{` e `}`).
-
-### 2.1 Comentários
-- Comentários de linha única: `// comentário`
-- Comentários de múltiplas linhas: `/* comentário */`
-
-### 2.2 Variáveis
-Variáveis são declaradas usando a palavra-chave `let`.
-```js
+```blades
 let nome = "Blades";
-let versao = 1;
-let ativa = true;
+const versao = 1;
 
-// Reatribuição (o tipo deve permanecer o mesmo)
-versao = 2;
-```
-
-## 3. Expressões e Operadores
-
-### Matemáticos
-- Adição: `+`
-- Subtração: `-`
-- Multiplicação: `*`
-- Divisão: `/`
-
-### Comparação e Lógicos
-- Igualdade: `==` e `!=`
-- Relacionais: `<`, `<=`, `>`, `>=`
-- Lógicos: `&&` (AND), `||` (OR), `!` (NOT)
-
-A linguagem respeita a precedência matemática convencional (PEMDAS). Parênteses `()` podem ser usados para forçar a precedência.
-
-## 4. Estruturas de Controle
-
-### 4.1 Condicionais (If / Else)
-O corpo do `if` exige o uso de chaves, mesmo para instruções únicas.
-```js
-let idade = 20;
-
-if (idade >= 18) {
-    print("Maior de idade");
-} else {
-    print("Menor de idade");
+if (versao == 1) {
+    print(nome);
 }
 ```
 
-### 4.2 Laços de Repetição (While)
-```js
-let i = 0;
-while (i < 5) {
-    print("Iteração:", i);
-    i = i + 1;
+`let` cria uma ligação mutável. `const` cria uma ligação que não pode ser reatribuída. Uma anotação opcional pode declarar o tipo esperado:
+
+```blades
+let contador: int = 0;
+const nome: string = "Blades";
+```
+
+## Tipos
+
+Os tipos primitivos são `Int`, `Float`, `Bool`, `String` e `Nil`. A VM também possui arrays, dicionários, funções, closures, classes, instâncias, vetores, cores e userdata.
+
+Anotações de parâmetros e retorno são opcionais:
+
+```blades
+fn add(a: int, b: int) -> int {
+    return a + b;
 }
 ```
 
-## 5. Escopo e Sombreamento (Shadowing)
+Tipos aceitos nas anotações: `int`, `i32`, `i64`, `float`, `f32`, `f64`, `double`, `number`, `bool`, `string`, `str`, `nil`, `void`, `array`, `list`, `dict`, `map` e `any`. `number` aceita inteiros e reais.
 
-O escopo é delimitado lexicalmente por blocos `{}`. Variáveis declaradas dentro de um bloco não são acessíveis do lado de fora.
-```js
-let a = 1;
-{
-    let a = 2; // Sombreia (shadowing) a variável externa
-    print(a);  // Imprime 2
+O analisador verifica aridade, tipos de argumentos, atribuições, condições booleanas e tipos de retorno. `any` e valores vindos de funções nativas são tratados como fronteiras dinâmicas.
+
+## Funções e classes
+
+```blades
+class Pessoa {
+    fn init(nome) {
+        this.nome = nome;
+    }
+
+    fn falar() {
+        print(this.nome);
+    }
 }
-print(a);      // Imprime 1
+
+let pessoa = Pessoa("Rafael");
+pessoa.falar();
 ```
 
-## 6. Funções e Biblioteca Padrão (StdLib)
+Closures são criadas com `fn(...) { ... }`. Classes podem herdar usando `<` e acessar métodos da classe base com `super.metodo()`.
 
-Na versão atual, o sistema expõe funções essenciais diretamente através do motor (Runtime):
+## Coleções
 
-- `print(arg1, arg2, ...)`: Imprime os valores no terminal com uma quebra de linha.
-- `clock()`: Retorna o timestamp em segundos (ponto flutuante) para medição de performance.
-- `type_of(val)`: Retorna uma string identificando o tipo da variável em tempo de execução (`"int"`, `"double"`, `"bool"`, `"string"`).
+```blades
+let valores = [1, 2, 3];
+let pessoa = { "nome": "Rafael", "idade": 25 };
 
-*(Funções customizadas através da palavra-chave `fn` fazem parte da gramática da linguagem e estão planejadas para suporte completo no bytecode em versões futuras).*
+print(valores[0]);
+print(pessoa["nome"]);
+```
+
+Arrays possuem a propriedade `length`. Dicionários usam chaves string.
+
+## Controle de fluxo
+
+Há `if/else`, `while`, `for`, `break`, `continue`, `return` e expressões `match`:
+
+```blades
+let resultado = match (valor) {
+    1 | 2 => "baixo",
+    _ if valor < 10 => "medio",
+    _ => "alto"
+};
+```
+
+## Biblioteca padrão atual
+
+`print`, `clock`, `type_of`, `random`, `input`, `len`, funções matemáticas, leitura/escrita de texto, arrays, `vec2`, `vec3` e `color`.
+
+Com `BLADES_ENABLE_RAYLIB=ON`, ficam disponíveis janela, desenho, câmera 3D, input e sistema de partículas.
+
+O exemplo `examples/fps_table.bl` demonstra uma mesa montada com `draw_cube` e `draw_plane`, usando `CAMERA_FREE` para navegação em primeira pessoa com teclado e mouse.
+
+## Módulos
+
+Imports usam caminhos relativos ao arquivo que importa:
+
+```blades
+import "util.bl";
+```
+
+O carregamento é feito uma vez por caminho canônico. Namespaces, manifesto de projeto e pacote de módulos são próximos passos do projeto.

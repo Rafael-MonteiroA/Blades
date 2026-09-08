@@ -29,6 +29,7 @@ private:
     
     u32 m_line = 1;
     u32 m_column = 1;
+    u32 m_start_line = 1;
     u32 m_start_column = 1;
 
     // Helpers

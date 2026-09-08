@@ -13,12 +13,14 @@
 #include <unordered_set>
 #include <vector>
 #include <memory>
+#include <filesystem>
 
 #include "version.hpp"
 
 #include "compiler/lexer.hpp"
 #include "compiler/parser.hpp"
 #include "compiler/semantic_analyzer.hpp"
+#include "compiler/ir.hpp"
 #include "compiler/ir_generator.hpp"
 #include "backend/vm.hpp"
 #include "runtime/stdlib.hpp"
@@ -50,6 +52,8 @@ struct ExecutionState
     VM vm;
     std::unordered_set<std::string> imported_files;
     std::vector<std::unique_ptr<std::string>> loaded_sources;
+    std::vector<std::unique_ptr<std::string>> loaded_filenames;
+    SemanticAnalyzer::FunctionSignatureTable function_signatures;
     
     ExecutionState()
     {
@@ -76,6 +80,7 @@ struct ExecutionState
         globals.declare("vec3", ValueType::Any);
         globals.declare("color", ValueType::Any);
 
+#ifdef BLADES_HAS_RAYLIB
         globals.declare("init_window", ValueType::Any);
         globals.declare("close_window", ValueType::Any);
         globals.declare("window_should_close", ValueType::Any);
@@ -87,6 +92,8 @@ struct ExecutionState
         globals.declare("end_mode_3d", ValueType::Any);
         globals.declare("update_camera", ValueType::Any);
         globals.declare("draw_sphere", ValueType::Any);
+        globals.declare("draw_cube", ValueType::Any);
+        globals.declare("draw_plane", ValueType::Any);
         globals.declare("is_key_down", ValueType::Any);
         globals.declare("is_key_pressed", ValueType::Any);
         globals.declare("set_target_fps", ValueType::Any);
@@ -102,13 +109,30 @@ struct ExecutionState
         globals.declare("KEY_DOWN", ValueType::Any);
         globals.declare("CAMERA_FREE", ValueType::Any);
         globals.declare("CAMERA_PERSPECTIVE", ValueType::Any);
+#endif
+
+        // Signatures for native functions that have a stable contract. Calls
+        // to variadic or overloaded helpers remain dynamic and are checked by
+        // the runtime boundary.
+        function_signatures["sin"] = {{ValueType::Number}, ValueType::Float};
+        function_signatures["cos"] = {{ValueType::Number}, ValueType::Float};
+        function_signatures["tan"] = {{ValueType::Number}, ValueType::Float};
+        function_signatures["sqrt"] = {{ValueType::Number}, ValueType::Float};
+        function_signatures["abs"] = {{ValueType::Number}, ValueType::Float};
+        function_signatures["pow"] = {{ValueType::Number, ValueType::Number}, ValueType::Float};
+        function_signatures["array_push"] = {{ValueType::Array, ValueType::Any}, ValueType::Nil};
+        function_signatures["array_pop"] = {{ValueType::Array}, ValueType::Any};
+        function_signatures["read_text"] = {{ValueType::String}, ValueType::String};
+        function_signatures["write_text"] = {{ValueType::String, ValueType::String}, ValueType::Bool};
         
         // Inject modules in VM
         register_stdlib(vm);
     }
 };
 
-static std::vector<std::unique_ptr<Stmt>> link_ast(std::vector<std::unique_ptr<Stmt>> stmts, ExecutionState& state)
+static std::vector<std::unique_ptr<Stmt>> link_ast(std::vector<std::unique_ptr<Stmt>> stmts,
+                                                   ExecutionState& state,
+                                                   const std::filesystem::path& base_dir)
 {
     std::vector<std::unique_ptr<Stmt>> linked;
     for (auto& stmt : stmts)
@@ -119,14 +143,22 @@ static std::vector<std::unique_ptr<Stmt>> link_ast(std::vector<std::unique_ptr<S
             if (path.length() >= 2 && path.front() == '"' && path.back() == '"')
                 path = path.substr(1, path.length() - 2);
 
-            if (state.imported_files.find(path) == state.imported_files.end())
+            std::filesystem::path requested(path);
+            if (requested.is_relative()) requested = base_dir / requested;
+
+            std::error_code fs_error;
+            std::filesystem::path resolved = std::filesystem::weakly_canonical(requested, fs_error);
+            if (fs_error) resolved = std::filesystem::absolute(requested, fs_error);
+            const std::string resolved_name = resolved.lexically_normal().string();
+
+            if (state.imported_files.find(resolved_name) == state.imported_files.end())
             {
-                state.imported_files.insert(path);
+                state.imported_files.insert(resolved_name);
                 
-                std::ifstream file(path);
+                std::ifstream file(resolved);
                 if (!file.is_open())
                 {
-                    std::cerr << "Linker Error: Could not open module '" << path << "'\n";
+                    std::cerr << "Linker Error: Could not open module '" << resolved_name << "'\n";
                     throw ParseError("Module not found");
                 }
                 
@@ -136,12 +168,17 @@ static std::vector<std::unique_ptr<Stmt>> link_ast(std::vector<std::unique_ptr<S
                 auto source_str = std::make_unique<std::string>(buffer.str());
                 std::string_view source_view = *source_str;
                 state.loaded_sources.push_back(std::move(source_str));
+                auto filename = std::make_unique<std::string>(resolved_name);
+                std::string_view filename_view = *filename;
+                state.loaded_filenames.push_back(std::move(filename));
                 
-                Lexer lexer(source_view, path);
+                Lexer lexer(source_view, filename_view);
                 Parser parser(lexer);
                 auto module_stmts = parser.parse();
+                if (parser.had_error())
+                    throw ParseError("Module contains syntax errors");
                 
-                auto linked_module = link_ast(std::move(module_stmts), state);
+                auto linked_module = link_ast(std::move(module_stmts), state, resolved.parent_path());
                 
                 for (auto& ms : linked_module)
                 {
@@ -157,7 +194,10 @@ static std::vector<std::unique_ptr<Stmt>> link_ast(std::vector<std::unique_ptr<S
     return linked;
 }
 
-static InterpretResult execute_source(std::string_view source, const char* name, ExecutionState& state)
+static InterpretResult compile_source(std::string_view source,
+                                      const char* name,
+                                      ExecutionState& state,
+                                      std::shared_ptr<ObjFunction>& function)
 {
     Lexer lexer(source, name);
     Parser parser(lexer);
@@ -166,7 +206,13 @@ static InterpretResult execute_source(std::string_view source, const char* name,
     try
     {
         stmts = parser.parse();
-        stmts = link_ast(std::move(stmts), state);
+        if (parser.had_error())
+            return InterpretResult::CompileError;
+        const std::filesystem::path source_path(name ? name : "<stdin>");
+        const std::filesystem::path base_dir = source_path.has_parent_path()
+            ? source_path.parent_path()
+            : std::filesystem::current_path();
+        stmts = link_ast(std::move(stmts), state, base_dir);
     }
     catch (const ParseError& e)
     {
@@ -176,7 +222,7 @@ static InterpretResult execute_source(std::string_view source, const char* name,
     
     try
     {
-        SemanticAnalyzer semantic(state.globals);
+        SemanticAnalyzer semantic(state.globals, &state.function_signatures);
         semantic.analyze(stmts);
     }
     catch (const SemanticError& e)
@@ -190,9 +236,27 @@ static InterpretResult execute_source(std::string_view source, const char* name,
         return InterpretResult::RuntimeError;
     }
     
-    IRGenerator generator;
-    auto function = generator.generate(stmts);
-    
+    try
+    {
+        IRGenerator generator;
+        function = generator.generate(stmts, name ? std::string_view{name} : std::string_view{});
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "Code generation error: " << e.what() << "\n";
+        return InterpretResult::CompileError;
+    }
+
+    return InterpretResult::Ok;
+}
+
+static InterpretResult execute_source(std::string_view source, const char* name, ExecutionState& state)
+{
+    std::shared_ptr<ObjFunction> function;
+    const InterpretResult compile_result = compile_source(source, name, state, function);
+    if (compile_result != InterpretResult::Ok)
+        return compile_result;
+
     InterpretResult result = state.vm.interpret(function);
     while (result == InterpretResult::Yield)
     {
@@ -200,6 +264,18 @@ static InterpretResult execute_source(std::string_view source, const char* name,
     }
     
     return result;
+}
+
+static bool read_source_file(std::string_view filename, std::string& source)
+{
+    std::ifstream file(std::string{filename});
+    if (!file.is_open())
+        return false;
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    source = buffer.str();
+    return true;
 }
 
 static void run_repl()
@@ -241,6 +317,8 @@ static void print_usage(std::string_view program_name)
         << "Usage:\n"
         << "  " << program_name << "             Start the interactive REPL\n"
         << "  " << program_name << " <file.bl>   Run a Blades source file\n"
+        << "  " << program_name << " --check <file.bl>       Check syntax and types without running\n"
+        << "  " << program_name << " --disassemble <file.bl> Compile and print bytecode\n"
         << "  " << program_name << " --version   Print version information\n"
         << "  " << program_name << " --help      Show this help message\n";
 }
@@ -285,23 +363,45 @@ int main(int argc, char* argv[])
             return 0;
         }
 
-        // Initialize engine and run script as Entity component
-        std::ifstream file(std::string{arg});
-        if (!file.is_open())
+        std::string source;
+        if (!read_source_file(arg, source))
         {
             std::cerr << "Could not open file: " << arg << "\n";
             return 74; // EX_IOERR
         }
-        
-        std::stringstream buffer;
-        buffer << file.rdbuf();
 
         blades::ExecutionState state;
 
         // Evaluate the script (no engine ECS)
-        InterpretResult result = execute_source(buffer.str(), arg.data(), state);
+        InterpretResult result = execute_source(source, arg.data(), state);
         
         return result == InterpretResult::Ok ? 0 : 1;
+    }
+
+    if (argc == 3)
+    {
+        std::string_view command = args[1];
+        std::string_view filename = args[2];
+        if (command == "--check" || command == "--disassemble" || command == "--dump-bytecode")
+        {
+            std::string source;
+            if (!read_source_file(filename, source))
+            {
+                std::cerr << "Could not open file: " << filename << "\n";
+                return 74; // EX_IOERR
+            }
+
+            blades::ExecutionState state;
+            std::shared_ptr<ObjFunction> function;
+            const InterpretResult result = compile_source(source, filename.data(), state, function);
+            if (result != InterpretResult::Ok)
+                return 1;
+
+            if (command == "--disassemble" || command == "--dump-bytecode")
+                std::cout << disassemble_chunk(function->chunk, std::string{filename});
+
+            return 0;
+        }
     }
 
     // Unknown usage

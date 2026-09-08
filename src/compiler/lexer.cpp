@@ -101,7 +101,7 @@ void Lexer::skip_whitespace()
 Token Lexer::make_token(TokenType type)
 {
     SourceSpan span;
-    span.start = SourceLocation{ m_line, m_start_column, m_start_offset, m_filename };
+    span.start = SourceLocation{ m_start_line, m_start_column, m_start_offset, m_filename };
     span.end = SourceLocation{ m_line, m_column, m_current_offset, m_filename };
 
     std::string_view lexeme = m_source.substr(m_start_offset, m_current_offset - m_start_offset);
@@ -112,7 +112,7 @@ Token Lexer::make_token(TokenType type)
 Token Lexer::error_token(std::string_view message)
 {
     SourceSpan span;
-    span.start = SourceLocation{ m_line, m_start_column, m_start_offset, m_filename };
+    span.start = SourceLocation{ m_start_line, m_start_column, m_start_offset, m_filename };
     span.end = SourceLocation{ m_line, m_column, m_current_offset, m_filename };
 
     return Token{ TokenType::Error, message, span };
@@ -123,6 +123,7 @@ Token Lexer::next_token()
     skip_whitespace();
     
     m_start_offset = m_current_offset;
+    m_start_line = m_line;
     m_start_column = m_column;
 
     if (is_at_end()) return make_token(TokenType::Eof);
@@ -135,8 +136,8 @@ Token Lexer::next_token()
         return fstring();
     }
 
-    if (std::isalpha(c) || c == '_') return identifier();
-    if (std::isdigit(c)) return number();
+    if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') return identifier();
+    if (std::isdigit(static_cast<unsigned char>(c))) return number();
 
     switch (c)
     {
@@ -243,15 +244,15 @@ Token Lexer::fstring()
 
 Token Lexer::number()
 {
-    while (std::isdigit(peek())) advance();
+    while (std::isdigit(static_cast<unsigned char>(peek()))) advance();
 
     // Look for a fractional part.
-    if (peek() == '.' && std::isdigit(peek_next()))
+    if (peek() == '.' && std::isdigit(static_cast<unsigned char>(peek_next())))
     {
         // Consume the "."
         advance();
 
-        while (std::isdigit(peek())) advance();
+        while (std::isdigit(static_cast<unsigned char>(peek()))) advance();
         return make_token(TokenType::Float);
     }
 
@@ -260,7 +261,7 @@ Token Lexer::number()
 
 Token Lexer::identifier()
 {
-    while (std::isalnum(peek()) || peek() == '_') advance();
+    while (std::isalnum(static_cast<unsigned char>(peek())) || peek() == '_') advance();
     return make_token(identifier_type());
 }
 

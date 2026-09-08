@@ -8,6 +8,7 @@ namespace blades
 std::string to_string(const Value& value)
 {
     if (value.is_nil()) return "nil";
+    if (value.is_native_error()) return "<native error: " + value.as_native_error().message + ">";
     if (value.is_int()) return std::to_string(value.as_int());
     if (value.is_double())
     {

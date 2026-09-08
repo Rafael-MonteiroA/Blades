@@ -28,6 +28,8 @@ public:
     // Parses a sequence of statements until EOF.
     std::vector<std::unique_ptr<Stmt>> parse();
 
+    [[nodiscard]] bool had_error() const noexcept { return m_had_error; }
+
 private:
     Lexer& m_lexer;
     Token m_current;
@@ -49,7 +51,7 @@ private:
     std::unique_ptr<Stmt> declaration();
     std::unique_ptr<Stmt> class_declaration();
     std::unique_ptr<Stmt> fn_declaration(std::string kind);
-    std::unique_ptr<Stmt> let_declaration();
+    std::unique_ptr<Stmt> let_declaration(bool is_const = false);
     std::unique_ptr<Stmt> import_statement();
     std::unique_ptr<Stmt> statement();
     std::unique_ptr<Stmt> if_statement();

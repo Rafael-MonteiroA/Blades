@@ -1,6 +1,6 @@
 <div align="center">
   <h1>🗡️ Blades</h1>
-  <p>Uma linguagem de programação elegante, leve e incrivelmente rápida, construída do zero em C++20.</p>
+  <p>Uma linguagem de scripting tipada, embutível e extensível, construída do zero em C++20.</p>
   
   ![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
   ![License](https://img.shields.io/badge/License-MIT-green.svg)
@@ -9,17 +9,18 @@
 
 ## O que é a Blades?
 
-A **Blades** é uma linguagem de script embeddável, compilada e fortemente tipada (com inferência) que roda sobre uma Máquina Virtual (VM) de stack própria. 
+A **Blades** é uma linguagem de scripting embutível, compilada para bytecode e executada por uma Máquina Virtual (VM) própria. O núcleo pode ser compilado sem Raylib; os recursos gráficos e 3D são opcionais.
 
 O projeto foi construído inteiramente do zero, passando por todas as etapas fundamentais da criação de um compilador clássico: **Lexer**, **Parser**, **Análise Semântica (Type Checker)**, **Geração de Código (IR)** e uma **Máquina Virtual (Backend)**.
 
 ### ✨ Principais Recursos
 
 - **Sintaxe Familiar:** C-family (JS/Rust/Swift) para você não ter que reaprender a programar.
-- **Tipagem Segura:** Uma vez declarada, o verificador semântico da Blades garante estaticamente que a variável mantenha seu tipo na reatribuição.
+- **Tipagem Progressivamente Segura:** Inferência local, anotações de tipos, assinaturas de funções e verificação de retornos.
 - **Máquina Virtual (VM) Rápida:** Baseada em execução de bytecode com base em stack (pilha).
 - **Sem Dependências Externas pesadas:** Escrito em C++20 moderno com `std::variant`, priorizando performance crua e segurança de memória.
 - **Interoperabilidade com C++:** Capacidade de injetar Funções Nativas do C++ dentro dos scripts nativamente de forma quase instantânea.
+- **Módulo 3D opcional:** Raylib, câmera, input, vetores, cores e simulações de partículas.
 
 ## Exemplo de Código
 
@@ -72,6 +73,13 @@ cmake -B build -G "Visual Studio 17 2022"
 cmake --build build --config Debug
 ```
 
+Para compilar apenas o núcleo, sem baixar Raylib:
+
+```powershell
+cmake -B build-core -DBLADES_ENABLE_RAYLIB=OFF
+cmake --build build-core --config Debug
+```
+
 ### Usando a Linguagem
 
 O binário final gera ferramentas incríveis direto para o seu console:
@@ -82,17 +90,26 @@ O binário final gera ferramentas incríveis direto para o seu console:
 
 # 2. Executa um script escrito em um arquivo
 .\build\bin\Debug\blades.exe meu_codigo.bl
+
+# 3. Verifica sintaxe e tipos sem executar efeitos colaterais
+.\build\bin\Debug\blades.exe --check meu_codigo.bl
+
+# 4. Inspeciona o bytecode gerado para depuração
+.\build\bin\Debug\blades.exe --disassemble meu_codigo.bl
+
+# 5. Exemplo 3D com câmera livre (requer BLADES_ENABLE_RAYLIB=ON)
+.\build\bin\Debug\blades.exe examples/fps_table.bl
 ```
 
 ### Rodando a Suíte de Testes
-O projeto usa um framework de testes customizado para atestar todos os stages do compilador.
+Os testes são registrados no CTest e cobrem execução, `match`, imports, tipos e recuperação de erros.
 ```powershell
-.\build\bin\Debug\blades_tests.exe
+ctest --test-dir build -C Debug --output-on-failure
 ```
 
 ## Como Contribuir
 
 Se sinta à vontade para abrir pull requests! 
-- Pacotes de extensão (importação de módulos).
-- Switch/Match statements (Pattern Matching).
-- Funções anônimas (Lambdas / Closures).
+- Biblioteca padrão multiplataforma (`std.fs`, `std.json`, `std.collections`).
+- Language Server, formatter e debugger.
+- Backend WebAssembly/nativo usando uma IR independente da VM.

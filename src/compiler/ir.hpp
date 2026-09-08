@@ -121,6 +121,7 @@ struct ObjFunction
 {
     u32 arity = 0;
     std::string name;
+    std::string source_name;
     IRChunk chunk;
     std::vector<CapturedUpvalue> captured_upvalues;
 };

@@ -9,7 +9,7 @@ namespace blades
 void SemanticAnalyzer::error(const Token& token, const std::string& message)
 {
     std::ostringstream oss;
-    oss << "[line " << token.span.start.line << "] Semantic Error";
+    oss << "[" << token.span.start.to_string() << "] Semantic Error";
     if (token.type == TokenType::Eof) {
         oss << " at end";
     } else {
@@ -17,6 +17,49 @@ void SemanticAnalyzer::error(const Token& token, const std::string& message)
     }
     oss << ": " << message;
     throw SemanticError(oss.str());
+}
+
+ValueType SemanticAnalyzer::type_from_annotation(const std::optional<Token>& annotation)
+{
+    if (!annotation.has_value()) return ValueType::Unknown;
+
+    const std::string name(annotation->lexeme);
+    if (name == "int" || name == "i32" || name == "i64") return ValueType::Int;
+    if (name == "float" || name == "f32" || name == "f64" || name == "double") return ValueType::Float;
+    if (name == "number") return ValueType::Number;
+    if (name == "bool") return ValueType::Bool;
+    if (name == "string" || name == "str") return ValueType::String;
+    if (name == "nil" || name == "unit" || name == "void") return ValueType::Nil;
+    if (name == "any") return ValueType::Any;
+    if (name == "array" || name == "list") return ValueType::Array;
+    if (name == "dict" || name == "map") return ValueType::Dict;
+
+    error(*annotation, "Unknown type '" + name + "'.");
+    return ValueType::Unknown;
+}
+
+bool SemanticAnalyzer::compatible(ValueType expected, ValueType actual) const
+{
+    if (expected == ValueType::Number)
+    {
+        return actual == ValueType::Int || actual == ValueType::Float ||
+               actual == ValueType::Unknown || actual == ValueType::Any;
+    }
+    return expected == ValueType::Unknown || actual == ValueType::Unknown ||
+           expected == ValueType::Any || actual == ValueType::Any || expected == actual;
+}
+
+const SemanticAnalyzer::FunctionSignature* SemanticAnalyzer::find_function(std::string_view name) const
+{
+    auto local = m_functions.find(std::string(name));
+    if (local != m_functions.end()) return &local->second;
+
+    if (m_known_functions != nullptr)
+    {
+        auto known = m_known_functions->find(std::string(name));
+        if (known != m_known_functions->end()) return &known->second;
+    }
+    return nullptr;
 }
 
 ValueType SemanticAnalyzer::evaluate(const Expr& expr)
@@ -35,10 +78,32 @@ void SemanticAnalyzer::analyze(const std::vector<std::unique_ptr<Stmt>>& stateme
 {
     // Ensure we have at least a global scope if it's completely empty
     m_symbols.declare("__init_global__", ValueType::Unknown);
+
+    // Collect signatures before walking bodies so forward calls and recursion
+    // receive the same checks as calls to functions declared earlier.
+    for (const auto& stmt : statements)
+    {
+        if (const auto* decl = dynamic_cast<const FunctionDecl*>(stmt.get()))
+        {
+            FunctionSignature signature;
+            for (const auto& parameter : decl->params)
+                signature.parameters.push_back(type_from_annotation(parameter.type));
+            signature.return_type = type_from_annotation(decl->return_type);
+            m_functions[std::string(decl->name.lexeme)] = std::move(signature);
+        }
+    }
     
     for (const auto& stmt : statements)
     {
         execute(*stmt);
+    }
+
+    // Persist signatures only after the complete unit succeeds. This keeps a
+    // failed REPL entry from registering half-checked functions.
+    if (m_known_functions != nullptr)
+    {
+        for (const auto& [name, signature] : m_functions)
+            (*m_known_functions)[name] = signature;
     }
 }
 
@@ -174,7 +239,6 @@ std::any SemanticAnalyzer::visit(const VariableExpr& expr)
     auto type = m_symbols.lookup(expr.name.lexeme);
     if (!type.has_value())
     {
-        std::cerr << "DEBUG: Lookup failed for variable '" << expr.name.lexeme << "'\n";
         error(expr.name, "Undefined variable.");
         return ValueType::Unknown;
     }
@@ -191,6 +255,11 @@ std::any SemanticAnalyzer::visit(const AssignExpr& expr)
         error(expr.name, "Undefined variable.");
         return value_type;
     }
+
+    if (!m_symbols.is_mutable(expr.name.lexeme))
+    {
+        error(expr.name, "Cannot assign to a constant binding.");
+    }
     
     if (var_type.value() != value_type && var_type.value() != ValueType::Unknown && value_type != ValueType::Unknown)
     {
@@ -204,20 +273,47 @@ std::any SemanticAnalyzer::visit(const AssignExpr& expr)
 std::any SemanticAnalyzer::visit(const CallExpr& expr)
 {
     evaluate(*expr.callee);
+    std::vector<ValueType> argument_types;
     for (const auto& arg : expr.arguments)
     {
-        evaluate(*arg);
+        argument_types.push_back(evaluate(*arg));
+    }
+
+    if (const auto* variable = dynamic_cast<const VariableExpr*>(expr.callee.get()))
+    {
+        const auto* signature = find_function(variable->name.lexeme);
+        if (signature != nullptr)
+        {
+            if (signature->parameters.size() != argument_types.size())
+            {
+                error(expr.paren, "Expected " + std::to_string(signature->parameters.size()) +
+                                 " argument(s), got " + std::to_string(argument_types.size()) + ".");
+            }
+            for (size_t i = 0; i < argument_types.size(); ++i)
+            {
+                if (!compatible(signature->parameters[i], argument_types[i]))
+                {
+                    error(expr.paren, "Argument " + std::to_string(i + 1) + " has type " +
+                                     std::string(to_string(argument_types[i])) + ", expected " +
+                                     std::string(to_string(signature->parameters[i])) + ".");
+                }
+            }
+            return signature->return_type;
+        }
     }
     return ValueType::Unknown; 
 }
 
 std::any SemanticAnalyzer::visit(const ArrayExpr& expr)
 {
+    ValueType element_type = ValueType::Unknown;
     for (const auto& el : expr.elements)
     {
-        evaluate(*el);
+        ValueType current_type = evaluate(*el);
+        if (element_type == ValueType::Unknown) element_type = current_type;
+        else if (!compatible(element_type, current_type)) element_type = ValueType::Any;
     }
-    return ValueType::Unknown;
+    return ValueType::Array;
 }
 
 std::any SemanticAnalyzer::visit(const SubscriptExpr& expr)
@@ -283,11 +379,26 @@ std::any SemanticAnalyzer::visit(const ExprStmt& stmt)
 std::any SemanticAnalyzer::visit(const LetStmt& stmt)
 {
     ValueType type = ValueType::Unknown;
+    const ValueType annotated_type = type_from_annotation(stmt.type);
     if (stmt.initializer)
     {
         type = evaluate(*stmt.initializer);
     }
-    m_symbols.declare(stmt.name.lexeme, type);
+    if (stmt.type)
+    {
+        if (type != ValueType::Unknown && !compatible(annotated_type, type))
+        {
+            error(*stmt.type, "Variable '" + std::string(stmt.name.lexeme) + "' is " +
+                              std::string(to_string(type)) + ", expected " +
+                              std::string(to_string(annotated_type)) + ".");
+        }
+        type = annotated_type;
+    }
+    if (stmt.is_const && !stmt.initializer)
+    {
+        error(stmt.name, "A constant must have an initializer.");
+    }
+    m_symbols.declare(stmt.name.lexeme, type, !stmt.is_const);
     return std::any();
 }
 
@@ -356,29 +467,43 @@ std::any SemanticAnalyzer::visit(const ForStmt& stmt)
 
 std::any SemanticAnalyzer::visit(const ReturnStmt& stmt)
 {
+    if (m_return_types.empty())
+    {
+        error(stmt.keyword, "Cannot return from the top level.");
+    }
+
+    ValueType actual = ValueType::Nil;
     if (stmt.value)
     {
-        evaluate(*stmt.value);
+        actual = evaluate(*stmt.value);
+    }
+    if (!compatible(m_return_types.back(), actual))
+    {
+        error(stmt.keyword, "Return type is " + std::string(to_string(actual)) +
+                           ", expected " + std::string(to_string(m_return_types.back())) + ".");
     }
     return std::any();
 }
 
 std::any SemanticAnalyzer::visit(const FunctionDecl& decl)
 {
-    // Simple mock: declare function name
-    m_symbols.declare(decl.name.lexeme, ValueType::Unknown);
+    m_symbols.declare(decl.name.lexeme, ValueType::Function);
     
     m_symbols.begin_scope();
     for (const auto& param : decl.params)
     {
-        m_symbols.declare(param.lexeme, ValueType::Unknown);
+        m_symbols.declare(param.name.lexeme, type_from_annotation(param.type));
     }
+
+    const auto* signature = find_function(decl.name.lexeme);
+    m_return_types.push_back(signature == nullptr ? ValueType::Unknown : signature->return_type);
     
     // Execute body directly (since BlockStmt handles its own scope, we might have double scope, 
     // but BlockStmt visit is fine). Actually BlockStmt visit will create a new scope.
     execute(*decl.body);
     
     m_symbols.end_scope();
+    m_return_types.pop_back();
     return std::any();
 }
 
@@ -401,13 +526,15 @@ std::any SemanticAnalyzer::visit(const ClassDecl& decl)
     for (const auto& method : decl.methods)
     {
         m_symbols.begin_scope();
+        m_return_types.push_back(type_from_annotation(method->return_type));
         for (const auto& param : method->params)
         {
-            m_symbols.declare(param.lexeme, ValueType::Unknown);
+            m_symbols.declare(param.name.lexeme, type_from_annotation(param.type));
         }
         
         execute(*method->body);
         m_symbols.end_scope();
+        m_return_types.pop_back();
     }
     
     m_symbols.end_scope();
@@ -430,11 +557,14 @@ std::any SemanticAnalyzer::visit(const FnExpr& expr)
     m_symbols.begin_scope();
     for (const auto& param : expr.params)
     {
-        m_symbols.declare(param.lexeme, ValueType::Unknown);
+        m_symbols.declare(param.name.lexeme, type_from_annotation(param.type));
     }
+
+    m_return_types.push_back(ValueType::Unknown);
     
     execute(*expr.body);
     m_symbols.end_scope();
+    m_return_types.pop_back();
     
     return ValueType::Unknown;
 }

@@ -16,6 +16,7 @@ enum class ValueType
     Nil,     // Nil type
     Int,
     Float,
+    Number,  // Type-system constraint accepting Int or Float.
     Bool,
     String,
     Array,

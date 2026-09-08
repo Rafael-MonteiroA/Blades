@@ -39,6 +39,7 @@ public:
     void pop_value() { pop(); }
 
     void define_native(const std::string& name, NativeFn function);
+    void define_global(const std::string& name, Value value);
     
     // Calls a method on an instance synchronously from C++
     InterpretResult call_method(Value instance, const std::string& method_name, const std::vector<Value>& args);

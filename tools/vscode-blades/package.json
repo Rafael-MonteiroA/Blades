@@ -1,8 +1,8 @@
 {
   "name": "blades-lang",
   "displayName": "Blades Language",
-  "description": "Syntax highlighting for the Blades programming language",
-  "version": "0.1.1",
+  "description": "Syntax highlighting and run support for the Blades programming language",
+  "version": "0.1.2",
   "publisher": "RafaelMonteiro",
   "main": "./extension.js",
   "engines": {
@@ -46,12 +46,22 @@
         "command": "blades.run",
         "title": "Run Blades Script",
         "icon": "$(play)"
+      },
+      {
+        "command": "blades.check",
+        "title": "Check Blades Script",
+        "icon": "$(check)"
       }
     ],
     "menus": {
       "editor/title/run": [
         {
           "command": "blades.run",
+          "when": "resourceExtname == .bl",
+          "group": "navigation"
+        },
+        {
+          "command": "blades.check",
           "when": "resourceExtname == .bl",
           "group": "navigation"
         }

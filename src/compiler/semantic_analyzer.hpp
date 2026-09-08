@@ -7,6 +7,9 @@
 #include <vector>
 #include <stdexcept>
 #include <memory>
+#include <optional>
+#include <unordered_map>
+#include <string_view>
 
 #include "compiler/ast.hpp"
 #include "compiler/symbol_table.hpp"
@@ -23,7 +26,17 @@ public:
 class SemanticAnalyzer : public AstVisitor
 {
 public:
-    SemanticAnalyzer(SymbolTable& globals) : m_symbols(globals) {}
+    struct FunctionSignature
+    {
+        std::vector<ValueType> parameters;
+        ValueType return_type = ValueType::Unknown;
+    };
+
+    using FunctionSignatureTable = std::unordered_map<std::string, FunctionSignature>;
+
+    explicit SemanticAnalyzer(SymbolTable& globals,
+                              FunctionSignatureTable* known_functions = nullptr)
+        : m_symbols(globals), m_known_functions(known_functions) {}
     
     void analyze(const std::vector<std::unique_ptr<Stmt>>& statements);
 
@@ -63,11 +76,18 @@ public:
 
 private:
     SymbolTable& m_symbols;
+
+    FunctionSignatureTable m_functions;
+    FunctionSignatureTable* m_known_functions = nullptr;
+    std::vector<ValueType> m_return_types;
     
     // Helpers
     void error(const Token& token, const std::string& message);
     ValueType evaluate(const Expr& expr);
     void execute(const Stmt& stmt);
+    ValueType type_from_annotation(const std::optional<Token>& annotation);
+    bool compatible(ValueType expected, ValueType actual) const;
+    const FunctionSignature* find_function(std::string_view name) const;
 };
 
 } // namespace blades

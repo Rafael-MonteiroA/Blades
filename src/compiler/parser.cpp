@@ -54,7 +54,7 @@ void Parser::error_at_current(const char* message)
     m_panic_mode = true;
     m_had_error = true;
     
-    std::cerr << "[line " << m_current.span.start.line << "] Error";
+    std::cerr << "[" << m_current.span.start.to_string() << "] Error";
     if (m_current.type == TokenType::Eof) {
         std::cerr << " at end";
     } else if (m_current.type == TokenType::Error) {
@@ -74,7 +74,7 @@ void Parser::error(const char* message)
     if (m_panic_mode) return;
     m_panic_mode = true;
     m_had_error = true;
-    std::cerr << "[line " << m_previous.span.start.line << "] Error at '" << m_previous.lexeme << "': " << message << "\n";
+    std::cerr << "[" << m_previous.span.start.to_string() << "] Error at '" << m_previous.lexeme << "': " << message << "\n";
     throw ParseError(message);
 }
 
@@ -179,7 +179,8 @@ std::vector<std::unique_ptr<Stmt>> Parser::parse()
     {
         try
         {
-            statements.push_back(declaration());
+            auto statement = declaration();
+            if (statement) statements.push_back(std::move(statement));
         }
         catch (const ParseError&)
         {
@@ -200,7 +201,8 @@ std::unique_ptr<Stmt> Parser::declaration()
         if (match(TokenType::Import)) return import_statement();
         if (match(TokenType::Class)) return class_declaration();
         if (match(TokenType::Fn)) return fn_declaration("function");
-        if (match(TokenType::Let) || match(TokenType::Const)) return let_declaration();
+        if (match(TokenType::Let)) return let_declaration(false);
+        if (match(TokenType::Const)) return let_declaration(true);
         return statement();
     }
     catch (const ParseError&)
@@ -216,33 +218,37 @@ std::unique_ptr<Stmt> Parser::fn_declaration(std::string kind)
     Token name = m_previous;
     
     consume(TokenType::LeftParen, ("Expect '(' after " + kind + " name.").c_str());
-    std::vector<Token> parameters;
+    std::vector<Parameter> parameters;
     if (!check(TokenType::RightParen))
     {
         do
         {
             consume(TokenType::Identifier, "Expect parameter name.");
-            parameters.push_back(m_previous);
+            Token parameter_name = m_previous;
+            std::optional<Token> parameter_type;
             
             // Temporary syntax for types: name: type
             if (match(TokenType::Colon))
             {
                 consume(TokenType::Identifier, "Expect parameter type.");
-                // We ignore the type in AST for now, or we'd store it in a TypedToken
+                parameter_type = m_previous;
             }
+            parameters.push_back(Parameter{std::move(parameter_name), std::move(parameter_type)});
         } while (match(TokenType::Comma));
     }
     consume(TokenType::RightParen, "Expect ')' after parameters.");
     
+    std::optional<Token> return_type;
     if (match(TokenType::Arrow))
     {
         consume(TokenType::Identifier, "Expect return type.");
+        return_type = m_previous;
     }
     
     consume(TokenType::LeftBrace, ("Expect '{' before " + kind + " body.").c_str());
     auto body = std::unique_ptr<BlockStmt>(static_cast<BlockStmt*>(block_statement().release()));
     
-    return std::make_unique<FunctionDecl>(std::move(name), std::move(parameters), std::move(body));
+    return std::make_unique<FunctionDecl>(std::move(name), std::move(parameters), std::move(return_type), std::move(body));
 }
 
 std::unique_ptr<Stmt> Parser::class_declaration()
@@ -274,10 +280,17 @@ std::unique_ptr<Stmt> Parser::class_declaration()
     return std::make_unique<ClassDecl>(std::move(name), std::move(superclass), std::move(methods));
 }
 
-std::unique_ptr<Stmt> Parser::let_declaration()
+std::unique_ptr<Stmt> Parser::let_declaration(bool is_const)
 {
     consume(TokenType::Identifier, "Expect variable name.");
     Token name = m_previous;
+
+    std::optional<Token> type;
+    if (match(TokenType::Colon))
+    {
+        consume(TokenType::Identifier, "Expect variable type after ':'.");
+        type = m_previous;
+    }
     
     std::unique_ptr<Expr> initializer = nullptr;
     if (match(TokenType::Equal))
@@ -286,7 +299,7 @@ std::unique_ptr<Stmt> Parser::let_declaration()
     }
     
     consume(TokenType::Semicolon, "Expect ';' after variable declaration.");
-    return std::make_unique<LetStmt>(std::move(name), std::move(initializer));
+    return std::make_unique<LetStmt>(std::move(name), std::move(type), std::move(initializer), is_const);
 }
 
 std::unique_ptr<Stmt> Parser::import_statement()
@@ -419,7 +432,8 @@ std::unique_ptr<Stmt> Parser::block_statement()
     std::vector<std::unique_ptr<Stmt>> statements;
     while (!check(TokenType::RightBrace) && !check(TokenType::Eof))
     {
-        statements.push_back(declaration());
+        auto statement = declaration();
+        if (statement) statements.push_back(std::move(statement));
     }
     consume(TokenType::RightBrace, "Expect '}' after block.");
     return std::make_unique<BlockStmt>(std::move(statements));
@@ -531,7 +545,6 @@ std::unique_ptr<Expr> Parser::assignment()
     
     if (match(TokenType::Equal))
     {
-        Token equals = m_previous;
         auto value = assignment();
         
         if (auto* var_expr = dynamic_cast<VariableExpr*>(expr.get()))
@@ -590,12 +603,14 @@ std::unique_ptr<Expr> Parser::assignment()
         }
         else if (auto* sub_expr = dynamic_cast<SubscriptExpr*>(expr.get()))
         {
+            (void)sub_expr;
             // For subscript compound assignment, we need to read the value first
             // This is complex — for now desugar to simple form
             error("Compound assignment on subscript not yet supported.");
         }
         else if (auto* prop_expr = dynamic_cast<PropertyExpr*>(expr.get()))
         {
+            (void)prop_expr;
             error("Compound assignment on property not yet supported.");
         }
         
@@ -807,13 +822,20 @@ std::unique_ptr<Expr> Parser::primary()
     if (match(TokenType::Fn))
     {
         consume(TokenType::LeftParen, "Expect '(' after 'fn'.");
-        std::vector<Token> parameters;
+        std::vector<Parameter> parameters;
         if (!check(TokenType::RightParen))
         {
             do
             {
                 consume(TokenType::Identifier, "Expect parameter name.");
-                parameters.push_back(m_previous);
+                Token parameter_name = m_previous;
+                std::optional<Token> parameter_type;
+                if (match(TokenType::Colon))
+                {
+                    consume(TokenType::Identifier, "Expect parameter type after ':'.");
+                    parameter_type = m_previous;
+                }
+                parameters.push_back(Parameter{std::move(parameter_name), std::move(parameter_type)});
             } while (match(TokenType::Comma));
         }
         consume(TokenType::RightParen, "Expect ')' after parameters.");

@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <string>
+#include <string_view>
 #include <memory>
 #include <any>
 
@@ -33,7 +34,8 @@ struct CompilerState
 class IRGenerator : public AstVisitor
 {
 public:
-    std::shared_ptr<ObjFunction> generate(const std::vector<std::unique_ptr<Stmt>>& statements);
+    std::shared_ptr<ObjFunction> generate(const std::vector<std::unique_ptr<Stmt>>& statements,
+                                          std::string_view source_name = {});
 
     // Expressions
     std::any visit(const LiteralExpr& expr) override;

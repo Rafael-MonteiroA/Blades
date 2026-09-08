@@ -159,6 +159,10 @@ std::any AstPrinter::visit(const LetStmt& stmt)
 {
     std::ostringstream oss;
     oss << "(let " << stmt.name.lexeme;
+    if (stmt.type)
+    {
+        oss << ":" << stmt.type->lexeme;
+    }
     if (stmt.initializer)
     {
         oss << " " << std::any_cast<std::string>(stmt.initializer->accept(*this));
@@ -228,7 +232,7 @@ std::any AstPrinter::visit(const FunctionDecl& decl)
     for (size_t i = 0; i < decl.params.size(); ++i)
     {
         if (i > 0) oss << " ";
-        oss << decl.params[i].lexeme;
+        oss << decl.params[i].name.lexeme;
     }
     oss << ") " << std::any_cast<std::string>(decl.body->accept(*this)) << ")";
     return oss.str();
@@ -241,7 +245,7 @@ std::any AstPrinter::visit(const FnExpr& expr)
     for (size_t i = 0; i < expr.params.size(); ++i)
     {
         if (i > 0) oss << " ";
-        oss << expr.params[i].lexeme;
+        oss << expr.params[i].name.lexeme;
     }
     oss << ") " << std::any_cast<std::string>(expr.body->accept(*this)) << ")";
     return oss.str();

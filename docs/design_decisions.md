@@ -1,159 +1,33 @@
-# Blades — Design Decisions
+# Decisões de design atuais
 
-Registro permanente das 8 decisões de design da linguagem, tomadas antes da Fase 0.
+## Produto
 
----
+A Blades é uma linguagem de scripting tipada e embutível. Ela pode ser usada sozinha, mas seu principal diferencial é integrar-se a aplicações C++ por meio de funções nativas e userdata.
 
-## 1. Paradigma: Imperativo + Funcional Leve
+## Paradigma
 
-**Decisão:** Base imperativa/procedural com elementos funcionais leves.
+A base é imperativa, com funções de primeira classe, closures, pattern matching e orientação a objetos por classes. Recursos funcionais podem crescer sem tornar o núcleo puramente funcional.
 
-**O que isso significa:**
-- Funções como cidadãs de primeira classe (closures, higher-order functions)
-- Pattern matching (match expressions)
-- Imutabilidade por padrão com `mut` para mutabilidade explícita
-- Composição via structs + traits em vez de herança clássica
-- Sem classes com herança, sem métodos virtuais por padrão
+## Tipagem
 
-**Alternativas descartadas:**
-- OOP puro: complexidade de vtables e herança desde o início
-- Funcional puro: garbage collector quase obrigatório; difícil mapear para hardware
-- Multiparadigma completo: risco de incoerência de design; complexidade do compilador
+A inferência local é combinada com anotações opcionais de parâmetros e retornos. `Unknown` representa informação ainda não resolvida; `Any` representa uma fronteira dinâmica controlada, principalmente em funções nativas.
 
----
+## Mutabilidade
 
-## 2. Tipagem: Estática, Forte, com Inferência Local
+`let` é mutável por compatibilidade com os scripts existentes. `const` é imutável e já é verificado pelo analisador semântico. Uma futura versão poderá introduzir `mut` caso a linguagem migre para uma convenção Rust-like.
 
-**Decisão:** Sistema de tipos estático e forte, com inferência restrita ao escopo local de funções.
+## Execução
 
-**O que isso significa:**
-- Erros de tipo detectados em tempo de compilação (Fase 3 — Semantic Analysis)
-- Sem conversões implícitas entre tipos numéricos (i32 ≠ f64; cast explícito necessário)
-- `let x = 42` → o tipo é inferido como `i32` dentro da função
-- `let x: f64 = 42` → declaração explícita necessária quando a inferência é ambígua
-- Sem inferência global (Hindley-Milner); mantém o compilador compreensível
+A implementação atual usa bytecode stack-based e uma VM própria. A separação de uma IR independente fica reservada para a fase de backend nativo/WASM.
 
-**Alternativas descartadas:**
-- Dinâmico: sem type checker educativo; performance ruim; erros tardios
-- Inferência global: correto mas extremamente complexo de implementar (algoritmo W/unification)
+## Memória e recursos
 
----
+Valores gerenciados usam objetos compartilhados. Recursos externos usam userdata com finalizador. A evolução planejada é um heap rastreável ou detector de ciclos completo para evitar ciclos entre closures e objetos.
 
-## 3. Execução: Bytecode + VM Própria
+## Módulos
 
-**Decisão:** Compilar para bytecode de uma representação intermediária (IR) própria, executado por uma VM stack-based/register-based custom.
+Imports são resolvidos por caminho canônico relativo ao arquivo importador. Namespaces e manifesto de projeto serão adicionados antes de um gerenciador de pacotes.
 
-**O que isso significa:**
-- Pipeline: Source → Lexer → Parser → AST → Semantic → IR → Bytecode → VM
-- A IR permite otimizações simples antes de gerar bytecode
-- A VM é implementada do zero (no estilo de CPython, Lua)
-- Backend nativo (x86_64) é possível futuramente usando a mesma IR como entrada
+## Plataforma
 
-**Alternativas descartadas:**
-- Compilação nativa direta: semanas apenas para rodar o primeiro "hello world" (codegen x86 + linking + ABI)
-- Tree-walking interpreter: lento, sem caminho natural para otimização ou compilação
-- LLVM/JVM como backend: viola a filosofia "do zero"
-
----
-
-## 4. Gerenciamento de Memória: Reference Counting + Detector de Ciclos
-
-**Decisão:** Contagem de referência automática com detector de ciclos (trial deletion / mark-and-sweep parcial para ciclos).
-
-**O que isso significa:**
-- Cada objeto tem um contador de referências; libera-se quando conta chega a zero
-- Determinístico (destruidores chamados imediatamente, sem pausas de GC)
-- Detector de ciclos rodará periodicamente para objetos suspeitos
-- O programador Blades não gerencia memória manualmente
-
-**Alternativas descartadas:**
-- Mark-and-sweep GC: mais complexo de implementar; pausas não-determinísticas
-- Ownership/borrow checker: fascinante, mas é quase um projeto separado em complexidade (Fase 9+)
-- Manual (malloc/free): inadequado para linguagem scripting moderna; muito bug-prone
-
----
-
-## 5. Propósito: Scripting Embarcável
-
-**Decisão:** Linguagem de scripting projetada para ser embarcada em aplicações C++ (ex: Zenith Engine), com uso standalone também suportado.
-
-**O que isso significa:**
-- API C++ de embedding para instanciar e controlar a VM de fora
-- FFI (Foreign Function Interface) com C/C++ para expor funções do host
-- Escopo bem definido evita "feature creep"
-- Runtime e stdlib mínimas (sem necessidade de sistema de pacotes)
-
-**Alternativas descartadas:**
-- Propósito geral: escopo infinito; risco de nunca ter um produto funcional
-- Linguagem de sistemas: requer controle fino de memória e baixo nível desde o início
-- Puramente experimental: sem objetivo concreto, difícil manter motivação
-
----
-
-## 6. Sintaxe: Rust-Inspired, Simplificada
-
-**Decisão:** Sintaxe inspirada em Rust com simplificações e influências de Go/Kotlin.
-
-**Características principais:**
-- Sem ponto-e-vírgula obrigatório (newline como terminador)
-- Chaves obrigatórias para todos os blocos (sem one-liners sem chaves)
-- `let` para imutável, `mut` para mutável
-- `fn` para funções, `struct` para tipos compostos, `impl` para métodos
-- `->` para tipo de retorno
-- `match` para pattern matching
-- Dois pontos para anotação de tipo (`x: i32`)
-
-**Exemplo:**
-```blades
-fn fibonacci(n: i32) -> i32 {
-    match n {
-        0 => return 0
-        1 => return 1
-        _ => return fibonacci(n - 1) + fibonacci(n - 2)
-    }
-}
-
-let result = fibonacci(10)
-print(result)
-```
-
-**Alternativas descartadas:**
-- C-like com `;` e `()` obrigatórios em condicionais: "mais do mesmo"; sem identidade
-- Python-like com indentação: parser de indentação é complexo e ambíguo
-- Sintaxe completamente original: risco de inconsistência sem inspiração sólida
-
----
-
-## 7. Plataforma: Windows Principal, Design Cross-Platform
-
-**Decisão:** Alvo primário Windows (ambiente do desenvolvedor), com arquitetura que suporta portabilidade futura.
-
-**O que isso significa:**
-- Abstrações de I/O no `common/` (sem chamadas de sistema diretas no compilador)
-- CMake como sistema de build (suporta MSVC, GCC, Clang)
-- Sem código `#ifdef _WIN32` no compilador core; apenas no runtime quando necessário
-- Testado com MSVC 2022 e GCC/Clang via WSL/GitHub Actions futuramente
-
----
-
-## 8. Linguagem de Implementação: C++20 com CMake
-
-**Decisão:** C++20 para implementar o compilador e a VM. CMake como sistema de build.
-
-**Features C++20 usadas:**
-- `std::variant` + `std::visit` para nós da AST e valores da VM
-- `std::unique_ptr` para ownership de nós da árvore
-- `std::string_view` para tokenização eficiente sem cópias
-- `std::span` para slices de arrays sem cópia
-- Concepts (para genericidade no sistema de tipos)
-- `constexpr` agressivo para constantes do compilador
-
-**Alternativas descartadas:**
-- C: verboso; sem RAII; sem `std::variant` para unions type-safe
-- Rust: curva de aprendizado adicional; borrow checker pode atrasar o projeto
-- Go: GC; runtime pesado; menos controle fino
-
----
-
-*Documento criado em: 2026-08-22*
-*Última atualização: Fase 0 — Fundação de Engenharia*
+CMake e C++20 são usados para manter portabilidade. Raylib é uma dependência opcional; o núcleo deve funcionar em ambientes sem janela ou GPU.

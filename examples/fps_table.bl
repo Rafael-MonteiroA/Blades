@@ -1,0 +1,65 @@
+// Mesa 3D com câmera livre em primeira pessoa.
+// Execute com Raylib habilitado:
+//   blades examples/fps_table.bl
+//
+// Controles: WASD + mouse para mover a câmera; ESC para fechar.
+
+fn cube(position, size, tint) {
+    draw_cube(position, size, tint);
+}
+
+fn draw_table() {
+    let wood = color(145, 82, 42, 255);
+    let dark_wood = color(92, 48, 24, 255);
+    let metal = color(70, 76, 86, 255);
+
+    // Tampo espesso.
+    cube(vec3(0, 3.4, 0), vec3(6.0, 0.45, 3.2), wood);
+
+    // Quatro pernas.
+    cube(vec3(-2.45, 1.7, -1.25), vec3(0.42, 3.4, 0.42), dark_wood);
+    cube(vec3( 2.45, 1.7, -1.25), vec3(0.42, 3.4, 0.42), dark_wood);
+    cube(vec3(-2.45, 1.7,  1.25), vec3(0.42, 3.4, 0.42), dark_wood);
+    cube(vec3( 2.45, 1.7,  1.25), vec3(0.42, 3.4, 0.42), dark_wood);
+
+    // Travessas estruturais abaixo do tampo.
+    cube(vec3(0, 2.55, -1.25), vec3(5.0, 0.25, 0.25), metal);
+    cube(vec3(0, 2.55,  1.25), vec3(5.0, 0.25, 0.25), metal);
+    cube(vec3(-2.45, 2.55, 0), vec3(0.25, 0.25, 2.5), metal);
+    cube(vec3( 2.45, 2.55, 0), vec3(0.25, 0.25, 2.5), metal);
+
+    // Um pequeno objeto decorativo sobre a mesa.
+    cube(vec3(0.9, 3.85, 0.1), vec3(0.8, 0.7, 0.8), metal);
+    draw_sphere(vec3(-1.0, 3.85, 0.0), 0.38, color(190, 42, 45, 255));
+}
+
+let width = 1280;
+let height = 720;
+init_window(width, height, "Blades - Mesa 3D FPS");
+set_target_fps(60);
+
+let camera = create_camera_3d(
+    vec3(8.0, 5.5, 9.0),
+    vec3(0.0, 2.5, 0.0),
+    vec3(0.0, 1.0, 0.0),
+    60.0,
+    CAMERA_PERSPECTIVE
+);
+
+disable_cursor();
+
+while (!window_should_close()) {
+    update_camera(camera, CAMERA_FREE);
+
+    begin_drawing();
+    clear_background(color(28, 35, 52, 255));
+
+    begin_mode_3d(camera);
+    draw_plane(vec3(0, 0, 0), vec2(30, 30), color(105, 112, 124, 255));
+    draw_table();
+    end_mode_3d();
+
+    end_drawing();
+}
+
+close_window();
