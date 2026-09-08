@@ -1,2 +1,0 @@
-const message: string = "check only";
-print(message);

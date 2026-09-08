@@ -1,3 +1,0 @@
-let pessoa = { "nome": "Rafael", "idade": 25 };
-print(pessoa["nome"]);
-print(pessoa["idade"]);

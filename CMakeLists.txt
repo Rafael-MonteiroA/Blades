@@ -9,8 +9,6 @@ project(
     LANGUAGES CXX
 )
 
-enable_testing()
-
 option(BLADES_ENABLE_RAYLIB "Build the optional Raylib graphics module" ON)
 
 # ── C++ Standard ─────────────────────────────────────────────────────────────

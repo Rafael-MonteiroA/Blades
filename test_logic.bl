@@ -1,6 +1,0 @@
-let t = true;
-let f = false;
-let r = t && f;
-print(r);
-let r2 = f || t;
-print(r2);

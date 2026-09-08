@@ -101,12 +101,6 @@ O binário final gera ferramentas incríveis direto para o seu console:
 .\build\bin\Debug\blades.exe examples/fps_table.bl
 ```
 
-### Rodando a Suíte de Testes
-Os testes são registrados no CTest e cobrem execução, `match`, imports, tipos e recuperação de erros.
-```powershell
-ctest --test-dir build -C Debug --output-on-failure
-```
-
 ## Como Contribuir
 
 Se sinta à vontade para abrir pull requests! 
